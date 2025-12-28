@@ -1,0 +1,90 @@
+[package]
+name = "data-modelling-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "data_modelling_api"
+crate-type = ["rlib"]
+
+[[bin]]
+name = "api"
+path = "src/api/main.rs"
+
+
+[dependencies]
+# SDK - shared types and utilities
+data-modelling-sdk = { workspace = true, features = ["api-backend"] }
+
+# Web framework
+axum = { version = "0.8", features = ["macros", "multipart", "tokio", "ws"] }
+tokio.workspace = true
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+futures-util = "0.3"
+
+# Serialization (from workspace)
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+
+# DrawIO XML
+quick-xml = { version = "0.31", features = ["serialize"] }
+
+# Git operations
+git2 = "0.15"
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "native-tls", "cookies"], default-features = false }
+urlencoding = "2.1"
+url = "2.5"
+
+# JWT authentication
+jsonwebtoken = "9"
+
+# Image processing
+image = "0.24"
+imageproc = "0.23"
+
+# ZIP file support
+zip = "0.6"
+
+# SQL parsing
+sqlparser = "0.53"
+datafusion = { version = "45", default-features = false, features = [] }
+regex = "1.10"
+
+# YAML processing
+yaml-rust = "0.4"
+petgraph = "0.6"
+
+# Utilities (from workspace)
+uuid.workspace = true
+chrono.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Observability - Tracing
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.32"
+
+# Observability - OpenTelemetry
+opentelemetry = "0.31"
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "trace", "metrics"] }
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "metrics", "trace"] }
+opentelemetry-semantic-conventions = "0.31"
+
+[features]
+default = []
+
+[dev-dependencies]
+cargo-tarpaulin = "0.21"
+tempfile = "3.8"
+axum-test = "18.3"
