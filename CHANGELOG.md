@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-01-01
+
+### Fixed
+
+- **fix(sqlx)**: Regenerated SQLX offline metadata to include missing queries
+  - Added missing query metadata for `collaboration_participants` INSERT query
+  - Added missing query metadata for `sessions` SELECT query
+  - Fixes GitHub Actions publish workflow failures when `SQLX_OFFLINE=true`
+
 ## [1.0.0] - 2024-12-31
 
 ### Added
