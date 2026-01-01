@@ -13,7 +13,7 @@ use serde_json::json;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::tables::AppState;
+use super::app_state::AppState;
 use crate::services::drawio_service::DrawIOService;
 use crate::services::export_service::ExportService;
 use std::path::Path as StdPath;
@@ -214,13 +214,23 @@ async fn export_all(
                 }
                 "protobuf" => {
                     // Export individual Protobuf files per table
-                    use crate::export::protobuf::ProtobufExporter;
                     for table in &model.tables {
-                        let mut field_number = 0u32;
                         let mut proto = String::new();
                         proto.push_str("syntax = \"proto3\";\n\n");
                         proto.push_str("package com.datamodel;\n\n");
-                        proto.push_str(&ProtobufExporter::export_table(table, &mut field_number));
+                        // Use ExportService helper for protobuf export
+                        let mut table_proto = String::new();
+                        table_proto.push_str(&format!("message {} {{\n", table.name));
+                        for (idx, col) in table.columns.iter().enumerate() {
+                            table_proto.push_str(&format!(
+                                "  {} {} = {};\n",
+                                ExportService::map_to_protobuf_type(&col.data_type),
+                                col.name,
+                                idx + 1
+                            ));
+                        }
+                        table_proto.push_str("}\n");
+                        proto.push_str(&table_proto);
                         zip.start_file(format!("schemas/{}.proto", table.name), options)
                             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                         zip.write_all(proto.as_bytes())

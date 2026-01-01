@@ -1,0 +1,2394 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Data Modelling API",
+    "description": "REST API for data modeling, schema management, and collaboration. Reverse-engineered from frontend code.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support",
+      "email": "mark@olliver.me.uk"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8081/api/v1",
+      "description": "Local development server"
+    },
+    {
+      "url": "https://api.example.com/api/v1",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/auth/github/login": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Initiate GitHub OAuth flow (web - direct redirect)",
+        "operationId": "initiate_github_login",
+        "parameters": [
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "description": "Frontend URL to redirect to after OAuth completion. If not provided, API will use a default.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "example": "http://localhost:5173/auth/complete"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to GitHub OAuth authorization page"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/auth/github/login/desktop": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Initiate GitHub OAuth flow for desktop apps",
+        "operationId": "initiate_desktop_github_login",
+        "responses": {
+          "200": {
+            "description": "Desktop OAuth flow initiated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "auth_url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": ["state_id", "auth_url"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/auth/github/callback": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Handle GitHub OAuth callback",
+        "description": "This handler supports both in-memory (file storage) and database-backed (PostgreSQL) sessions.",
+        "operationId": "handle_github_callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "description": "Authorization code from GitHub",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "CSRF state token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to frontend with auth code or error"
+          },
+          "400": {
+            "description": "Bad request - invalid callback parameters"
+          }
+        }
+      }
+    },
+    "/auth/exchange": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Exchange a short-lived one-time code for JWT tokens (web flow)",
+        "operationId": "exchange_auth_code",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "Authorization code from OAuth callback"
+                  }
+                },
+                "required": ["code"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Auth code exchanged successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "refresh_token": {
+                      "type": "string"
+                    },
+                    "access_token_expires_at": {
+                      "type": "integer"
+                    },
+                    "refresh_token_expires_at": {
+                      "type": "integer"
+                    },
+                    "token_type": {
+                      "type": "string",
+                      "default": "Bearer"
+                    }
+                  },
+                  "required": ["access_token", "refresh_token"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid or expired code"
+          }
+        }
+      }
+    },
+    "/auth/poll/{state_id}": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Poll for desktop auth completion",
+        "operationId": "poll_auth_status",
+        "parameters": [
+          {
+            "name": "state_id",
+            "in": "path",
+            "description": "Desktop auth state ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Auth status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "completed", "expired"]
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Authorization code (present when status is 'completed')"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message (present when status is 'expired' or error occurred)"
+                    }
+                  },
+                  "required": ["status"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "State ID not found"
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Refresh access token using refresh token",
+        "description": "Supports both in-memory and database-backed session validation.",
+        "operationId": "refresh_token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                },
+                "required": ["refresh_token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token refreshed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "refresh_token": {
+                      "type": "string"
+                    },
+                    "access_token_expires_at": {
+                      "type": "integer"
+                    },
+                    "refresh_token_expires_at": {
+                      "type": "integer"
+                    },
+                    "token_type": {
+                      "type": "string",
+                      "default": "Bearer"
+                    }
+                  },
+                  "required": ["access_token", "refresh_token"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or expired refresh token"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Logout and revoke session",
+        "description": "Supports both in-memory and database-backed session revocation.",
+        "operationId": "logout",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logged out successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        }
+      }
+    },
+    "/auth/status": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get current authentication status",
+        "description": "Supports both in-memory and database-backed session queries.",
+        "operationId": "get_auth_status",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Auth status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/select-email": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Select email for workspace creation",
+        "operationId": "select_email",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                },
+                "required": ["email"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email selected successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid email"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get current authenticated user",
+        "operationId": "get_current_user",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "name", "email"]
+                    }
+                  },
+                  "required": ["user"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check endpoint",
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/info": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "Get current workspace information",
+        "operationId": "get_workspace_info",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace_path": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string",
+                      "format": "email"
+                    }
+                  },
+                  "required": ["workspace_path", "email"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        }
+      }
+    },
+    "/workspace/profiles": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "List all profiles (email/domain combinations) for the authenticated user",
+        "operationId": "list_profiles",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of profiles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profiles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string",
+                            "format": "email"
+                          },
+                          "domains": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["email", "domains"]
+                      }
+                    }
+                  },
+                  "required": ["profiles"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        }
+      }
+    },
+    "/workspace/create": {
+      "post": {
+        "tags": ["Workspace"],
+        "summary": "Create or get workspace for user email and domain",
+        "operationId": "create_workspace",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "domain": {
+                    "type": "string"
+                  }
+                },
+                "required": ["email", "domain"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace created or retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace_path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["workspace_path"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid email or domain"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/workspace/domains": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "List all domains for the authenticated user",
+        "operationId": "list_domains",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of domains retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["domains"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Workspace"],
+        "summary": "Create a new domain for the authenticated user",
+        "operationId": "create_domain",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string"
+                  }
+                },
+                "required": ["domain"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Domain created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "workspace_path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["domain", "workspace_path"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid domain name"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "409": {
+            "description": "Conflict - domain already exists"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/workspace/domains/{domain}": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "Get domain info",
+        "operationId": "get_domain",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "workspace_path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["domain", "workspace_path"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        }
+      }
+    },
+    "/workspace/load-domain": {
+      "post": {
+        "tags": ["Workspace"],
+        "summary": "Load a specific domain for the authenticated user",
+        "description": "This endpoint forces a reload from disk to ensure latest data is loaded",
+        "operationId": "load_domain",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string"
+                  }
+                },
+                "required": ["domain"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Domain loaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "workspace_path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["domain", "workspace_path"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/workspace/domains/{domain}/tables": {
+      "get": {
+        "tags": ["Tables"],
+        "summary": "Get all tables in a domain",
+        "operationId": "get_domain_tables",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of tables retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tables": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Table"
+                      }
+                    }
+                  },
+                  "required": ["tables"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Tables"],
+        "summary": "Create a new table in a domain",
+        "operationId": "create_domain_table",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTableRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Table created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "$ref": "#/components/schemas/Table"
+                    }
+                  },
+                  "required": ["table"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/workspace/domains/{domain}/tables/{table_id}": {
+      "get": {
+        "tags": ["Tables"],
+        "summary": "Get a single table",
+        "operationId": "get_domain_table",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "$ref": "#/components/schemas/Table"
+                    }
+                  },
+                  "required": ["table"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table ID"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Table not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Tables"],
+        "summary": "Update a table",
+        "operationId": "update_domain_table",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Table update fields",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTableRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Table updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "$ref": "#/components/schemas/Table"
+                    }
+                  },
+                  "required": ["table"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table ID or update data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Table not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Tables"],
+        "summary": "Delete a table",
+        "operationId": "delete_domain_table",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table deleted successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid table ID"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Table not found"
+          }
+        }
+      }
+    },
+    "/workspace/domains/{domain}/tables/{table_id}/position": {
+      "put": {
+        "tags": ["Tables"],
+        "summary": "Update table position on canvas",
+        "operationId": "update_table_position",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["x", "y"]
+                  }
+                },
+                "required": ["position"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Table position updated successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid position data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Table not found"
+          }
+        }
+      }
+    },
+    "/workspace/domains/{domain}/relationships": {
+      "get": {
+        "tags": ["Relationships"],
+        "summary": "Get all relationships in a domain",
+        "operationId": "get_domain_relationships",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of relationships retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "relationships": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Relationship"
+                      }
+                    }
+                  },
+                  "required": ["relationships"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Relationships"],
+        "summary": "Create a new relationship",
+        "operationId": "create_domain_relationship",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRelationshipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Relationship created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "relationship": {
+                      "$ref": "#/components/schemas/Relationship"
+                    }
+                  },
+                  "required": ["relationship"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid relationship data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain or referenced tables not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/workspace/domains/{domain}/relationships/check-circular": {
+      "post": {
+        "tags": ["Relationships"],
+        "summary": "Check for circular dependency",
+        "operationId": "check_circular_dependency",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source_table_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "target_table_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["source_table_id", "target_table_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Circular dependency check completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "is_circular": {
+                      "type": "boolean"
+                    },
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Path of table IDs forming the cycle (if is_circular is true)"
+                    }
+                  },
+                  "required": ["is_circular"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table IDs"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        }
+      }
+    },
+    "/workspace/domains/{domain}/relationships/{relationship_id}": {
+      "get": {
+        "tags": ["Relationships"],
+        "summary": "Get a single relationship",
+        "operationId": "get_domain_relationship",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "description": "Relationship UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relationship retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "relationship": {
+                      "$ref": "#/components/schemas/Relationship"
+                    }
+                  },
+                  "required": ["relationship"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid relationship ID"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Relationship not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Relationships"],
+        "summary": "Update a relationship",
+        "operationId": "update_domain_relationship",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "description": "Relationship UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRelationshipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Relationship updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "relationship": {
+                      "$ref": "#/components/schemas/Relationship"
+                    }
+                  },
+                  "required": ["relationship"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid relationship ID or update data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Relationship not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Relationships"],
+        "summary": "Delete a relationship",
+        "operationId": "delete_domain_relationship",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "description": "Relationship UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relationship deleted successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid relationship ID"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Relationship not found"
+          }
+        }
+      }
+    },
+    "/import/sql/text": {
+      "post": {
+        "tags": ["Import"],
+        "summary": "Import tables from SQL text",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_sql_text",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sql": {
+                    "type": "string",
+                    "description": "SQL DDL text"
+                  }
+                },
+                "required": ["sql"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SQL text imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tables": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Table"
+                      }
+                    },
+                    "relationships": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Relationship"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid SQL syntax"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/import/odcl/text": {
+      "post": {
+        "tags": ["Import"],
+        "summary": "Import tables from ODCS/ODCL text",
+        "description": "Supports ODCS (Open Data Contract Standard) v3.1.0 (primary format) and Legacy ODCL formats (deprecated, support ends 31/12/26). Requires JWT authentication.",
+        "operationId": "import_odcl_text",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "yaml": {
+                    "type": "string",
+                    "description": "ODCS/ODCL YAML text"
+                  }
+                },
+                "required": ["yaml"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ODCS/ODCL text imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tables": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Table"
+                      }
+                    },
+                    "relationships": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Relationship"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid content or format"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/import/avro": {
+      "post": {
+        "tags": ["Import"],
+        "summary": "Import tables from AVRO schema file",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_avro",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "description": "AVRO schema file",
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AVRO schema imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tables": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Table"
+                      }
+                    },
+                    "relationships": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Relationship"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid AVRO schema"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/import/json-schema": {
+      "post": {
+        "tags": ["Import"],
+        "summary": "Import tables from JSON Schema file",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_json_schema",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "description": "JSON Schema file",
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON Schema imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tables": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Table"
+                      }
+                    },
+                    "relationships": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Relationship"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid JSON Schema"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/import/protobuf": {
+      "post": {
+        "tags": ["Import"],
+        "summary": "Import tables from Protobuf .proto file",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_protobuf",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Protobuf schema file",
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Protobuf schema imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tables": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Table"
+                      }
+                    },
+                    "relationships": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Relationship"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid Protobuf schema"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/domains/{domain_id}/export": {
+      "get": {
+        "tags": ["Export"],
+        "summary": "Export a domain to YAML files",
+        "operationId": "export_domain",
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "domain_id",
+            "in": "path",
+            "description": "Domain UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Export format: odcs, sql, avro, json_schema, protobuf",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["odcs", "sql", "avro", "json_schema", "protobuf"],
+              "default": "odcs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain exported successfully",
+            "content": {
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - workspace access denied"
+          },
+          "404": {
+            "description": "Workspace or domain not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": ["OpenAPI"],
+        "summary": "Serve the OpenAPI specification as JSON",
+        "operationId": "serve_openapi_json",
+        "responses": {
+          "200": {
+            "description": "OpenAPI specification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer_auth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Table": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID"
+          },
+          "primary_domain_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "max 255 chars, unique within workspace"
+          },
+          "alias": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "max 255 chars"
+          },
+          "model_type": {
+            "type": "string",
+            "enum": ["conceptual", "logical", "physical"]
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Column"
+            }
+          },
+          "position_x": {
+            "type": "number",
+            "description": "canvas position"
+          },
+          "position_y": {
+            "type": "number",
+            "description": "canvas position"
+          },
+          "width": {
+            "type": "number",
+            "description": "canvas size, default 200"
+          },
+          "height": {
+            "type": "number",
+            "description": "canvas size, default 150"
+          },
+          "visible_domains": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "array of domain UUIDs"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp"
+          },
+          "last_modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp"
+          }
+        },
+        "required": ["id", "workspace_id", "primary_domain_id", "name", "model_type", "columns", "position_x", "position_y", "width", "height", "visible_domains", "created_at", "last_modified_at"]
+      },
+      "Column": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "table_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "data_type": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean",
+            "default": false
+          },
+          "is_primary_key": {
+            "type": "boolean",
+            "default": false
+          },
+          "is_foreign_key": {
+            "type": "boolean",
+            "default": false
+          },
+          "foreign_key_reference": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of referenced table.column"
+          },
+          "default_value": {
+            "type": "string"
+          },
+          "constraints": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "order": {
+            "type": "integer",
+            "description": "Column order within table"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "table_id", "name", "data_type", "nullable", "is_primary_key", "is_foreign_key", "order", "created_at"]
+      },
+      "Relationship": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_table_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_column_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of source column (optional)"
+          },
+          "target_table_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target_column_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of target column (optional)"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["one-to-one", "one-to-many", "many-to-many"]
+          },
+          "source_cardinality": {
+            "type": "string",
+            "enum": ["0", "1", "N"]
+          },
+          "target_cardinality": {
+            "type": "string",
+            "enum": ["0", "1", "N"]
+          },
+          "source_optional": {
+            "type": "boolean"
+          },
+          "target_optional": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string",
+            "description": "optional relationship label"
+          },
+          "model_type": {
+            "type": "string",
+            "enum": ["conceptual", "logical", "physical"]
+          },
+          "is_circular": {
+            "type": "boolean",
+            "description": "indicates if relationship creates a cycle"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_modified_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "workspace_id", "domain_id", "source_table_id", "target_table_id", "type", "source_cardinality", "target_cardinality", "source_optional", "target_optional", "is_circular", "model_type", "created_at", "last_modified_at"]
+      },
+      "CreateTableRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "alias": {
+            "type": "string"
+          },
+          "model_type": {
+            "type": "string",
+            "enum": ["conceptual", "logical", "physical"]
+          },
+          "primary_domain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position_x": {
+            "type": "number"
+          },
+          "position_y": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "data_type": {
+                  "type": "string"
+                },
+                "nullable": {
+                  "type": "boolean"
+                },
+                "is_primary_key": {
+                  "type": "boolean"
+                },
+                "is_foreign_key": {
+                  "type": "boolean"
+                },
+                "foreign_key_reference": {
+                  "type": "string"
+                },
+                "default_value": {
+                  "type": "string"
+                },
+                "constraints": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "order": {
+                  "type": "integer"
+                }
+              },
+              "required": ["name", "data_type", "order"]
+            }
+          }
+        },
+        "required": ["name", "model_type", "primary_domain_id", "position_x", "position_y"]
+      },
+      "UpdateTableRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "alias": {
+            "type": "string"
+          },
+          "position_x": {
+            "type": "number"
+          },
+          "position_y": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          },
+          "visible_domains": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreateRelationshipRequest": {
+        "type": "object",
+        "properties": {
+          "source_table_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target_table_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["one-to-one", "one-to-many", "many-to-many"]
+          },
+          "source_cardinality": {
+            "type": "string",
+            "enum": ["0", "1", "N"]
+          },
+          "target_cardinality": {
+            "type": "string",
+            "enum": ["0", "1", "N"]
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": ["source_table_id", "target_table_id", "type", "source_cardinality", "target_cardinality"]
+      },
+      "UpdateRelationshipRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["one-to-one", "one-to-many", "many-to-many"]
+          },
+          "source_cardinality": {
+            "type": "string",
+            "enum": ["0", "1", "N"]
+          },
+          "target_cardinality": {
+            "type": "string",
+            "enum": ["0", "1", "N"]
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": ["error", "message"]
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Authentication and authorization endpoints"
+    },
+    {
+      "name": "Workspace",
+      "description": "Workspace and domain management"
+    },
+    {
+      "name": "Tables",
+      "description": "Table CRUD operations"
+    },
+    {
+      "name": "Relationships",
+      "description": "Relationship CRUD operations"
+    },
+    {
+      "name": "Import",
+      "description": "Data import from various formats"
+    },
+    {
+      "name": "Export",
+      "description": "Data export to various formats"
+    },
+    {
+      "name": "Health",
+      "description": "Health check endpoints"
+    },
+    {
+      "name": "OpenAPI",
+      "description": "OpenAPI specification endpoints"
+    }
+  ]
+}

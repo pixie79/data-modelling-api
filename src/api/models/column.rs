@@ -7,7 +7,7 @@ pub struct ForeignKey {
     pub column_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Column {
     pub name: String,
     pub data_type: String,

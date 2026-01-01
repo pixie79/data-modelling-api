@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE domains\n                SET name = $1, description = COALESCE($2, description), updated_at = $3\n                WHERE id = $4\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7cc88817015bcc096465d7d53f8d18a6beb78f9e6bc2c60bcfb12cc546a37cac"
+}

@@ -58,6 +58,7 @@ impl JSONSchemaExporter {
     }
 
     /// Export a data model to JSON Schema format.
+    #[allow(dead_code)] // Reserved for future JSON Schema export features
     pub fn export_model(model: &DataModel, table_ids: Option<&[uuid::Uuid]>) -> Value {
         let mut definitions = serde_json::Map::new();
 

@@ -300,7 +300,7 @@ async fn import_odcl(
             .map(|e| {
                 json!({
                     "type": e.error_type,
-                    "field": e.field,
+                    "field": e.field.clone(),
                     "message": e.message
                 })
             })
@@ -429,7 +429,7 @@ pub async fn import_odcl_text(
             .map(|e| {
                 json!({
                     "type": e.error_type,
-                    "field": e.field,
+                    "field": e.field.clone(),
                     "message": e.message
                 })
             })
@@ -1173,7 +1173,7 @@ async fn import_avro(
             .map(|e| {
                 json!({
                     "type": e.error_type,
-                    "field": e.field,
+                    "field": e.field.clone(),
                     "message": e.message
                 })
             })
@@ -1190,10 +1190,9 @@ async fn import_avro(
     let mut tables_with_errors = tables;
     for parse_error in &parse_errors {
         // Find the table this error belongs to (if field indicates a table)
-        if let Some(table_name) = parse_error.field.as_ref().and_then(|f| {
-            // Try to extract table name from field if it's in format "table_name.field"
-            f.split('.').next()
-        }) && let Some(table) = tables_with_errors.iter_mut().find(|t| t.name == table_name)
+        if let Some(field_str) = parse_error.field.as_ref()
+            && let Some(table_name) = field_str.split('.').next()
+            && let Some(table) = tables_with_errors.iter_mut().find(|t| t.name == table_name)
         {
             let mut error_map = HashMap::new();
             error_map.insert(
@@ -1202,13 +1201,7 @@ async fn import_avro(
             );
             error_map.insert(
                 "field".to_string(),
-                serde_json::Value::String(
-                    parse_error
-                        .field
-                        .as_deref()
-                        .unwrap_or("unknown")
-                        .to_string(),
-                ),
+                serde_json::Value::String(field_str.clone()),
             );
             error_map.insert(
                 "message".to_string(),
@@ -1414,7 +1407,7 @@ pub async fn import_json_schema(
             .map(|e| {
                 json!({
                     "type": e.error_type,
-                    "field": e.field,
+                    "field": e.field.clone(),
                     "message": e.message
                 })
             })
@@ -1431,10 +1424,9 @@ pub async fn import_json_schema(
     let mut tables_with_errors = tables;
     for parse_error in &parse_errors {
         // Find the table this error belongs to (if field indicates a table)
-        if let Some(table_name) = parse_error.field.as_ref().and_then(|f| {
-            // Try to extract table name from field if it's in format "table_name.field"
-            f.split('.').next()
-        }) && let Some(table) = tables_with_errors.iter_mut().find(|t| t.name == table_name)
+        if let Some(field_str) = parse_error.field.as_ref()
+            && let Some(table_name) = field_str.split('.').next()
+            && let Some(table) = tables_with_errors.iter_mut().find(|t| t.name == table_name)
         {
             let mut error_map = HashMap::new();
             error_map.insert(
@@ -1443,13 +1435,7 @@ pub async fn import_json_schema(
             );
             error_map.insert(
                 "field".to_string(),
-                serde_json::Value::String(
-                    parse_error
-                        .field
-                        .as_deref()
-                        .unwrap_or("unknown")
-                        .to_string(),
-                ),
+                serde_json::Value::String(field_str.clone()),
             );
             error_map.insert(
                 "message".to_string(),
@@ -1593,13 +1579,23 @@ async fn import_protobuf(
 
     // Parse Protobuf
     let parser = ProtobufParser::new();
-    let (tables, parse_errors) = match parser.parse(&proto_content) {
+    let (tables, parse_error_strings) = match parser.parse(&proto_content).await {
         Ok(result) => result,
         Err(e) => {
             error!("Protobuf parsing error: {}", e);
             return Err(StatusCode::BAD_REQUEST);
         }
     };
+
+    // Convert Vec<String> to Vec<ParserError> for consistency
+    let parse_errors: Vec<crate::services::avro_parser::ParserError> = parse_error_strings
+        .into_iter()
+        .map(|msg| crate::services::avro_parser::ParserError {
+            error_type: "parse_error".to_string(),
+            field: None,
+            message: msg,
+        })
+        .collect();
 
     if tables.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
@@ -1655,7 +1651,7 @@ async fn import_protobuf(
             .map(|e| {
                 json!({
                     "type": e.error_type,
-                    "field": e.field,
+                    "field": e.field.clone(),
                     "message": e.message
                 })
             })

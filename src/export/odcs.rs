@@ -8,18 +8,21 @@ use serde_yaml;
 use std::collections::HashMap;
 
 /// Exporter for ODCS (Open Data Contract Standard) v3.1.0 YAML format.
+#[allow(dead_code)] // Reserved for future ODCS export features (SDK handles exports)
 pub struct ODCSExporter;
 
 impl ODCSExporter {
     /// Export a table to ODCS v3.1.0 YAML format.
     ///
     /// Note: Only ODCS v3.1.0 format is supported. Legacy formats have been removed.
+    #[allow(dead_code)] // Reserved for future ODCS export features (SDK handles exports)
     pub fn export_table(table: &Table, _format: &str) -> String {
         // All exports use ODCS v3.1.0 format
         Self::export_odcs_v3_1_0_format(table)
     }
 
     /// Helper to convert serde_json::Value to serde_yaml::Value
+    #[allow(dead_code)] // Reserved for future ODCS export features (SDK handles exports)
     fn json_to_yaml_value(json: &serde_json::Value) -> serde_yaml::Value {
         match json {
             serde_json::Value::Null => serde_yaml::Value::Null,
@@ -53,6 +56,7 @@ impl ODCSExporter {
     }
 
     /// Export in ODCS v3.1.0 format (the only supported export format).
+    #[allow(dead_code)] // Reserved for future ODCS export features (SDK handles exports)
     fn export_odcs_v3_1_0_format(table: &Table) -> String {
         let mut yaml = serde_yaml::Mapping::new();
 
@@ -814,6 +818,7 @@ impl ODCSExporter {
     }
 
     /// Export a data model to ODCS v3.1.0 YAML format.
+    #[allow(dead_code)] // Reserved for future ODCS export features (SDK handles exports)
     pub fn export_model(
         model: &DataModel,
         table_ids: Option<&[uuid::Uuid]>,

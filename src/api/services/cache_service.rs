@@ -417,12 +417,49 @@ impl CacheService {
             id,
             name: row.get("name")?,
             columns,
-            database_type: None, // TODO: Parse from string
-            catalog_name: row.get("catalog_name")?,
-            schema_name: row.get("schema_name")?,
-            medallion_layers: Vec::new(),    // TODO: Parse from string
-            scd_pattern: None,               // TODO: Parse from string
-            data_vault_classification: None, // TODO: Parse from string
+            database_type: row
+                .get::<_, Option<String>>("database_type")?
+                .and_then(|s| match s.as_str() {
+                    "Postgres" => Some(crate::models::enums::DatabaseType::Postgres),
+                    "Mysql" => Some(crate::models::enums::DatabaseType::Mysql),
+                    "SqlServer" => Some(crate::models::enums::DatabaseType::SqlServer),
+                    "DatabricksDelta" => Some(crate::models::enums::DatabaseType::DatabricksDelta),
+                    "AwsGlue" => Some(crate::models::enums::DatabaseType::AwsGlue),
+                    _ => None,
+                }),
+            catalog_name: row.get::<_, Option<String>>("catalog_name")?,
+            schema_name: row.get::<_, Option<String>>("schema_name")?,
+            medallion_layers: row
+                .get::<_, Option<String>>("medallion_layers")?
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|l| match l.trim() {
+                            "Bronze" => Some(crate::models::enums::MedallionLayer::Bronze),
+                            "Silver" => Some(crate::models::enums::MedallionLayer::Silver),
+                            "Gold" => Some(crate::models::enums::MedallionLayer::Gold),
+                            "Operational" => {
+                                Some(crate::models::enums::MedallionLayer::Operational)
+                            }
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            scd_pattern: row.get::<_, Option<String>>("scd_pattern")?.and_then(|s| {
+                match s.as_str() {
+                    "Type1" => Some(crate::models::enums::SCDPattern::Type1),
+                    "Type2" => Some(crate::models::enums::SCDPattern::Type2),
+                    _ => None,
+                }
+            }),
+            data_vault_classification: row
+                .get::<_, Option<String>>("data_vault_classification")?
+                .and_then(|s| match s.as_str() {
+                    "Hub" => Some(crate::models::enums::DataVaultClassification::Hub),
+                    "Link" => Some(crate::models::enums::DataVaultClassification::Link),
+                    "Satellite" => Some(crate::models::enums::DataVaultClassification::Satellite),
+                    _ => None,
+                }),
             modeling_level: None,
             tags: Vec::new(),
             odcl_metadata,

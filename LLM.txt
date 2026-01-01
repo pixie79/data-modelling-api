@@ -1,0 +1,201 @@
+# Data Modelling API - LLM Documentation
+
+This document provides an overview of the Data Modelling API for Large Language Models (LLMs) to understand its structure, functionality, and key components.
+
+## Project Overview
+The Data Modelling API is a Rust-based backend service built with the Axum web framework. It provides a comprehensive set of functionalities for managing data models, including:
+- Workspace and domain management
+- CRUD operations for tables and relationships
+- Multi-format import and export capabilities (SQL, ODCS, JSON Schema, Avro, Protobuf, DrawIO)
+- GitHub OAuth authentication with JWT tokens
+- Support for PostgreSQL and file-based storage backends
+- Real-time collaboration features
+- Git synchronization for version control
+- OpenAPI specification for API documentation
+
+## Key Technologies
+- **Rust**: Primary programming language (Edition 2024)
+- **Axum**: Web application framework for building the API
+- **SQLx**: Asynchronous SQL toolkit for interacting with PostgreSQL
+- **Utoipa**: Code-first OpenAPI specification generator
+- **data-modelling-sdk**: Published crate (v1.0.2) providing shared types and Git operations
+- **Chrono**: Date and time utilities
+- **Uuid**: UUID generation
+- **Tracing**: Structured logging
+- **Serde**: Serialization/deserialization framework
+- **Tokio**: Asynchronous runtime
+
+## Core Concepts
+
+### Data Model Structure
+The API manages data models composed of:
+- **Workspaces**: Top-level containers for domains, typically associated with a user
+- **Domains**: Logical groupings of tables and relationships within a workspace
+- **Tables**: Represent entities with columns, data types, and metadata
+- **Relationships**: Define connections between tables (e.g., one-to-one, one-to-many, many-to-many)
+- **Columns**: Attributes of tables with specific data types and constraints
+
+### Storage Backends
+The API supports configurable storage backends:
+- **PostgreSQL**: Recommended for production, providing robust, transactional storage with migrations
+- **File-based**: Simple storage for development and testing, using YAML files on the local filesystem
+
+### Authentication
+- **GitHub OAuth**: Users authenticate via GitHub
+- **JWT (JSON Web Tokens)**: Used for API authorization after successful OAuth
+- **Refresh Tokens**: Allow users to obtain new access tokens without re-authenticating
+- **Session Management**: Database-backed sessions for PostgreSQL mode, in-memory for file mode
+
+### Git Synchronization
+The API integrates with Git repositories to store and version control data models using the SDK's GitService. This enables:
+- Cloning and initializing repositories
+- Committing changes
+- Pushing and pulling from remote repositories
+- Conflict detection and resolution
+
+### Collaboration
+Real-time collaboration features include:
+- Session management for shared editing
+- Participant management with permissions (viewer, editor, owner)
+- Access requests and approvals
+- Presence tracking (cursor position, selected items, editing state)
+
+### OpenAPI Specification
+The API generates an OpenAPI 3.0 specification, providing machine-readable documentation of all endpoints, request/response schemas, and authentication methods. Accessible at `/api/v1/openapi.json`.
+
+## Project Structure
+
+```
+src/
+├── api/
+│   ├── main.rs              # Application entry point
+│   ├── routes/              # API route handlers
+│   │   ├── auth.rs          # Authentication endpoints
+│   │   ├── workspace.rs     # Workspace and domain management
+│   │   ├── git_sync.rs      # Git synchronization
+│   │   ├── collaboration_sessions.rs  # Collaboration features
+│   │   ├── audit.rs         # Audit trail queries
+│   │   ├── import.rs        # Multi-format imports
+│   │   ├── models.rs        # Export endpoints
+│   │   └── openapi.rs       # OpenAPI spec endpoint
+│   ├── services/            # Business logic services
+│   ├── storage/             # Storage backends (PostgreSQL, File)
+│   ├── middleware/          # Middleware (CORS, rate limiting, observability)
+│   └── models/              # Data models
+├── export/                  # Format exporters
+└── lib.rs                   # Library root
+
+migrations/                  # SQLx database migrations
+```
+
+## API Endpoints
+
+### Authentication
+- `GET /api/v1/auth/github/login`: Initiate GitHub OAuth login (supports redirect_uri parameter)
+- `GET /api/v1/auth/github/callback`: Handle GitHub OAuth callback
+- `POST /api/v1/auth/refresh`: Refresh JWT tokens
+- `GET /api/v1/auth/status`: Get authentication status
+
+### Workspace & Domains
+- `POST /api/v1/workspace/create`: Create a new workspace
+- `GET /api/v1/workspace/info`: Get current workspace info
+- `GET /api/v1/workspace/domains`: List domains in a workspace
+- `POST /api/v1/workspace/domains`: Create a new domain
+- `GET /api/v1/workspace/domains/{domain}`: Get domain details
+- `PUT /api/v1/workspace/domains/{domain}`: Update domain
+- `DELETE /api/v1/workspace/domains/{domain}`: Delete domain
+
+### Tables & Relationships
+- `GET /api/v1/workspace/domains/{domain}/tables`: List tables
+- `POST /api/v1/workspace/domains/{domain}/tables`: Create table
+- `GET /api/v1/workspace/domains/{domain}/tables/{table_id}`: Get table
+- `PUT /api/v1/workspace/domains/{domain}/tables/{table_id}`: Update table
+- `DELETE /api/v1/workspace/domains/{domain}/tables/{table_id}`: Delete table
+
+### Git Sync
+- `GET /api/v1/git/config`: Get sync configuration
+- `POST /api/v1/git/config`: Update sync configuration
+- `POST /api/v1/git/init`: Initialize repository
+- `POST /api/v1/git/clone`: Clone repository
+- `GET /api/v1/git/status`: Get Git status
+- `POST /api/v1/git/commit`: Commit changes
+- `POST /api/v1/git/push`: Push changes
+- `POST /api/v1/git/pull`: Pull changes
+- `GET /api/v1/git/conflicts`: List conflicts
+- `POST /api/v1/git/conflicts/resolve`: Resolve conflict
+
+### Collaboration
+- `POST /api/v1/collaboration/sessions`: Create session
+- `GET /api/v1/collaboration/sessions`: List sessions
+- `GET /api/v1/collaboration/sessions/{session_id}`: Get session
+- `DELETE /api/v1/collaboration/sessions/{session_id}`: End session
+- `GET /api/v1/collaboration/sessions/{session_id}/participants`: List participants
+- `POST /api/v1/collaboration/sessions/{session_id}/invite`: Invite user
+- `GET /api/v1/collaboration/sessions/{session_id}/presence`: Get presence
+
+### Audit
+- `GET /api/v1/audit/domains/{domain_id}/history`: Get domain audit history
+- `GET /api/v1/audit/tables/{table_id}/history`: Get table audit history
+- `GET /api/v1/audit/relationships/{relationship_id}/history`: Get relationship audit history
+- `GET /api/v1/audit/entries/{entry_id}`: Get audit entry details
+
+### OpenAPI
+- `GET /api/v1/openapi.json`: Serve the OpenAPI specification
+
+## Development Practices
+- **Code Quality**: Enforced via `cargo fmt` and `cargo clippy`
+- **Testing**: Comprehensive unit and integration tests
+- **CI/CD**: GitHub Actions workflows for continuous integration
+- **Pre-commit Hooks**: Local hooks for automated code quality checks
+- **Database Migrations**: Managed via SQLx migrations in `migrations/` directory
+
+## Environment Variables
+
+### Required
+- `WORKSPACE_DATA`: Path to workspace data directory (for file-based storage)
+- `JWT_SECRET`: Secret key for JWT token signing
+- `GITHUB_CLIENT_ID`: GitHub OAuth client ID
+- `GITHUB_CLIENT_SECRET`: GitHub OAuth client secret
+
+### Optional
+- `DATABASE_URL`: PostgreSQL connection string (if not set, uses file-based storage)
+- `FRONTEND_URL`: Frontend URL for OAuth redirects
+- `REDIRECT_URI_WHITELIST`: Comma-separated list of allowed redirect URIs
+- `ENFORCE_HTTPS_REDIRECT`: Enforce HTTPS for redirect URIs (true/false)
+- `OTEL_SERVICE_NAME`: OpenTelemetry service name
+- `OTEL_EXPORTER_OTLP_ENDPOINT`: OpenTelemetry endpoint URL
+
+## Dependencies
+
+### Published Crates
+- `data-modelling-sdk = "1.0.2"` - Shared types and Git operations
+
+### Key Dependencies
+- `axum = "0.7"` - Web framework
+- `sqlx = "0.8"` - Database toolkit
+- `utoipa = "5.0"` - OpenAPI generation
+- `tokio = "1.0"` - Async runtime
+- `serde = "1.0"` - Serialization
+- `uuid = "1.0"` - UUID generation
+- `tracing = "0.1"` - Logging
+
+## Testing
+
+Integration tests are located in `tests/integration/` and should be run sequentially to prevent interference:
+```bash
+cargo test -- --test-threads=1
+```
+
+## Deployment
+
+The API can be deployed using Docker:
+```bash
+docker-compose up -d
+```
+
+Or run directly:
+```bash
+cargo run --bin api
+```
+
+This document is intended to be a living reference for LLMs to better understand and interact with the Data Modelling API codebase.

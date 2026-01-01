@@ -21,7 +21,6 @@ use axum::{
     response::{Json, Redirect},
     routing::{get, post},
 };
-use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -34,7 +33,6 @@ use super::app_state::AppState;
 use super::workspace;
 use crate::services::jwt_service::{Claims, JwtService, SharedJwtService, TokenPair};
 use crate::services::oauth_service::{GitHubEmail, OAuthService};
-use crate::storage::traits::EmailInfo;
 use url::Url;
 
 /// OAuth session storage - keeps track of active sessions for revocation
@@ -88,6 +86,8 @@ pub struct SessionMetadata {
     pub selected_email: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub last_activity: chrono::DateTime<chrono::Utc>,
+    pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
 // Legacy alias for backward compatibility
@@ -652,59 +652,47 @@ pub async fn handle_github_callback(
 
     // Store session - use database if available, otherwise in-memory
     if let Some(db_session_store) = auth_state.app_state.db_session_store() {
-        // PostgreSQL storage mode - create user and session in database
-        if let Some(storage) = auth_state.app_state.storage.as_ref() {
-            // Get or create user in database
-            let user = storage
-                .get_or_create_user(github_id as i64, &username)
-                .await
-                .map_err(|e| {
-                    warn!("Failed to get/create user in database: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+        // PostgreSQL storage mode - create session in database
+        // Use deterministic user_id based on email for consistency
+        let user_id = Uuid::new_v5(&Uuid::NAMESPACE_DNS, primary_email.as_bytes());
 
-            // Update user emails
-            let email_infos: Vec<EmailInfo> = emails
-                .iter()
-                .map(|e| EmailInfo {
-                    email: e.email.clone(),
-                    verified: e.verified,
-                    primary: e.primary,
-                })
-                .collect();
+        // Convert emails to EmailInfo
+        let email_infos: Vec<crate::storage::traits::EmailInfo> = emails
+            .iter()
+            .map(|e| crate::storage::traits::EmailInfo {
+                email: e.email.clone(),
+                verified: e.verified,
+                primary: e.primary,
+            })
+            .collect();
 
-            storage
-                .update_user_emails(user.id, email_infos)
-                .await
-                .map_err(|e| {
-                    warn!("Failed to update user emails in database: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+        // Create session in database
+        db_session_store
+            .create_session(crate::storage::session_store::CreateSessionParams {
+                session_id: session_uuid,
+                user_id,
+                github_id,
+                github_username: username.clone(),
+                github_access_token: github_access_token.clone(),
+                emails: email_infos,
+                selected_email: selected_email.clone(),
+            })
+            .await
+            .map_err(|e| {
+                warn!("Failed to create session in database: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
-            // Create session in database (7 day expiry for refresh token)
-            db_session_store
-                .create_session(
-                    session_uuid,
-                    user.id,
-                    &github_access_token,
-                    selected_email.as_deref(),
-                    Duration::days(7),
-                )
-                .await
-                .map_err(|e| {
-                    warn!("Failed to create session in database: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-
-            info!(
-                "Created database session for GitHub user: {} (session: {}, user_id: {})",
-                username, session_id, user.id
-            );
-        }
+        info!(
+            "Created database session for GitHub user: {} (session: {}, user_id: {})",
+            username, session_id, user_id
+        );
     } else {
         // In-memory storage mode (legacy)
         let user_id = crate::routes::workspace::get_or_create_file_user_id(&primary_email)
             .unwrap_or_else(|_| Uuid::new_v4());
+        let now = chrono::Utc::now();
+        let expires_at = now + chrono::Duration::days(7); // 7 days expiry
         let session = SessionMetadata {
             user_id,
             github_id,
@@ -712,8 +700,10 @@ pub async fn handle_github_callback(
             github_access_token,
             emails: emails.clone(),
             selected_email: selected_email.clone(),
-            created_at: chrono::Utc::now(),
-            last_activity: chrono::Utc::now(),
+            created_at: now,
+            last_activity: now,
+            revoked_at: None,
+            expires_at,
         };
         auth_state
             .session_store
@@ -945,7 +935,7 @@ pub async fn get_auth_status(
                     return Ok(Json(AuthStatusResponse {
                         authenticated: true,
                         github_username: Some(claims.github_username.clone()),
-                        emails: Vec::new(), // TODO: Fetch from database
+                        emails: session.emails.clone(),
                         selected_email: session.selected_email,
                         token_expires_at: Some(claims.exp),
                     }));

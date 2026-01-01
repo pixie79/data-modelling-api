@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE sessions\n            SET last_activity = NOW()\n            WHERE id = $1 AND expires_at > NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ae0da913406ba1cfac6a9d4efd571b959ea0d501e1470ff017c3b006a021ca08"
+}

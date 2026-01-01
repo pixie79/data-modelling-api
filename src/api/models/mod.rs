@@ -2,6 +2,7 @@
 
 pub mod column;
 pub mod data_model;
+#[path = "enums.rs"]
 pub mod enums;
 pub mod relationship;
 pub mod table;

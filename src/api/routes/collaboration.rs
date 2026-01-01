@@ -24,7 +24,7 @@ use tokio::sync::broadcast;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use super::tables::AppState;
+use super::app_state::AppState;
 
 /// WebSocket connection query parameters
 #[derive(Deserialize)]
@@ -217,7 +217,7 @@ async fn handle_shared_session_socket(
     {
         let store = crate::storage::CollaborationStore::new(db.clone());
         let _ = store
-            .update_presence(session_uuid, user_uuid, None, None, &[], &[], None)
+            .update_presence(session_uuid, user_uuid, true, None, None, &[], &[], None)
             .await;
     }
 
@@ -345,7 +345,16 @@ async fn handle_shared_session_message(
                 {
                     let store = crate::storage::CollaborationStore::new(db.clone());
                     let _ = store
-                        .update_presence(session_uuid, user_uuid, Some(x), Some(y), &[], &[], None)
+                        .update_presence(
+                            session_uuid,
+                            user_uuid,
+                            true,
+                            Some(y),
+                            Some(x),
+                            &[],
+                            &[],
+                            None,
+                        )
                         .await;
                 }
             }
@@ -381,6 +390,7 @@ async fn handle_shared_session_message(
                     .update_presence(
                         session_uuid,
                         user_uuid,
+                        true,
                         None,
                         None,
                         &table_uuids,
@@ -410,6 +420,7 @@ async fn handle_shared_session_message(
                     .update_presence(
                         session_uuid,
                         user_uuid,
+                        true,
                         None,
                         None,
                         &[],
@@ -433,7 +444,7 @@ async fn handle_shared_session_message(
             {
                 let store = crate::storage::CollaborationStore::new(db.clone());
                 let _ = store
-                    .update_presence(session_uuid, user_uuid, None, None, &[], &[], None)
+                    .update_presence(session_uuid, user_uuid, true, None, None, &[], &[], None)
                     .await;
             }
         }
@@ -446,7 +457,7 @@ async fn handle_shared_session_message(
             {
                 let store = crate::storage::CollaborationStore::new(db.clone());
                 let _ = store
-                    .update_presence(session_uuid, user_uuid, None, None, &[], &[], None)
+                    .update_presence(session_uuid, user_uuid, true, None, None, &[], &[], None)
                     .await;
             }
         }

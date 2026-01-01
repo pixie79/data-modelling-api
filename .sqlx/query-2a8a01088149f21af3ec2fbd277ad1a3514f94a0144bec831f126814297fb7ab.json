@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO collaboration_requests (id, session_id, requester_id, status, requested_at)\n            VALUES ($1, $2, $3, 'pending', $4)\n            ON CONFLICT (session_id, requester_id) WHERE status = 'pending' DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a8a01088149f21af3ec2fbd277ad1a3514f94a0144bec831f126814297fb7ab"
+}

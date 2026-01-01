@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE relationships\n            SET data = $1, version = $2, updated_by = $3, updated_at = $4\n            WHERE id = $5\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Int4",
+        "Uuid",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0eb19fc61e483ba0b1eb4f7bebaad04bc9644d92c7bd6f2878c03bfd9dfa8f17"
+}

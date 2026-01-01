@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, session_id, user_id, permission, joined_at, last_seen, is_online, cursor_x, cursor_y, selected_tables, selected_relationships, editing_table\n            FROM collaboration_participants\n            WHERE session_id = $1\n            ORDER BY joined_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "permission",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "joined_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_seen",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_online",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "cursor_x",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "cursor_y",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "selected_tables",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
+        "name": "selected_relationships",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 11,
+        "name": "editing_table",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f217b05623edc7c9dcc56303cf39ed2b2694954f528eba4674b4c9e7f82fc8d7"
+}

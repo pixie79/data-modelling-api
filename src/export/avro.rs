@@ -36,6 +36,7 @@ impl AvroExporter {
     }
 
     /// Export a data model to AVRO schema format.
+    #[allow(dead_code)] // Reserved for future AVRO export features
     pub fn export_model(model: &DataModel, table_ids: Option<&[uuid::Uuid]>) -> Value {
         let tables_to_export: Vec<&Table> = if let Some(ids) = table_ids {
             model

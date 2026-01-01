@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE collaboration_participants\n            SET is_online = false, last_seen = NOW()\n            WHERE session_id = $1 AND user_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea38ee7cddc5226ebb13b15a6839d5c44295f4302d7a3ca7ef340cbce2cc4b27"
+}

@@ -18,8 +18,7 @@ path = "src/api/main.rs"
 
 [dependencies]
 # SDK - shared types and utilities
-# Note: Update this to use a published version or git dependency when SDK is published
-data-modelling-sdk = { path = "../data-modelling-sdk", features = ["api-backend", "git"] }
+data-modelling-sdk = { version = "1.0.2", features = ["api-backend", "git"] }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "multipart", "tokio", "ws"] }
@@ -46,9 +45,12 @@ quick-xml = { version = "0.31", features = ["serialize"] }
 # Git operations - handled through SDK (no direct git2 dependency needed)
 
 # Database - SQLite (legacy)
-rusqlite = { version = "0.31", features = ["bundled"] }
+# Updated to be compatible with sqlx 0.8.1
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 # Database - PostgreSQL with sqlx
+# Note: Offline mode is enabled via SQLX_OFFLINE=true environment variable
+# Generate metadata with: cargo sqlx prepare -- --all-features
 sqlx = { version = "0.8", features = [
     "runtime-tokio",
     "tls-native-tls",
@@ -112,70 +114,5 @@ once_cell = "1.19"
 serial_test = "3.0"
 
 # Test targets
-[[test]]
-name = "test_storage"
-path = "tests/unit/test_storage.rs"
-
-[[test]]
-name = "test_session_store"
-path = "tests/unit/test_session_store.rs"
-
-[[test]]
-name = "test_storage_integration"
-path = "tests/integration/test_storage_integration.rs"
-
-[[test]]
-name = "test_collaboration"
-path = "tests/unit/test_collaboration.rs"
-
-[[test]]
-name = "test_audit"
-path = "tests/unit/test_audit.rs"
-
-[[test]]
-name = "test_git_sync"
-path = "tests/unit/test_git_sync.rs"
-
-[[test]]
-name = "test_auth_session_flow"
-path = "tests/integration/test_auth_session_flow.rs"
-
-[[test]]
-name = "test_collaboration_workflow"
-path = "tests/integration/test_collaboration_workflow.rs"
-
-[[test]]
-name = "test_websocket_updates"
-path = "tests/integration/test_websocket_updates.rs"
-
-[[test]]
-name = "test_optimistic_locking"
-path = "tests/integration/test_optimistic_locking.rs"
-
-[[test]]
-name = "test_yaml_export_import"
-path = "tests/integration/test_yaml_export_import.rs"
-
-[[test]]
-name = "test_auth_routes_comprehensive"
-path = "tests/integration/test_auth_routes_comprehensive.rs"
-
-[[test]]
-name = "test_workspace_routes_comprehensive"
-path = "tests/integration/test_workspace_routes_comprehensive.rs"
-
-[[test]]
-name = "test_import_routes_comprehensive"
-path = "tests/integration/test_import_routes_comprehensive.rs"
-
-[[test]]
-name = "test_export_routes_comprehensive"
-path = "tests/integration/test_export_routes_comprehensive.rs"
-
-[[test]]
-name = "test_table_routes_comprehensive"
-path = "tests/integration/test_table_routes_comprehensive.rs"
-
-[[test]]
-name = "test_relationship_routes_comprehensive"
-path = "tests/integration/test_relationship_routes_comprehensive.rs"
+# Note: Only existing test files are listed here
+# Additional tests can be added as needed

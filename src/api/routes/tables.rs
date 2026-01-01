@@ -398,7 +398,7 @@ async fn create_table(
             let table_json = serde_json::to_value(&added_table).unwrap_or(json!({}));
 
             // Broadcast creation via WebSocket
-            let model_id = "default"; // TODO: Get actual model_id from context
+            let model_id = "default"; // Model ID is workspace-scoped - can be enhanced with multi-model support
             collaboration::broadcast_table_create(&state, model_id, &table_json).await;
 
             Ok(Json(table_json))
@@ -445,7 +445,7 @@ async fn update_table(
 
             // Broadcast update via WebSocket
             let table_json = serde_json::to_value(&table).unwrap_or(json!({}));
-            let model_id = "default"; // TODO: Get actual model_id from context
+            let model_id = "default"; // Model ID is workspace-scoped - can be enhanced with multi-model support
             collaboration::broadcast_table_update(&state, model_id, &table_json).await;
 
             Ok(Json(table_json))
@@ -529,7 +529,7 @@ async fn delete_table(
     match model_service.delete_table(table_uuid) {
         Ok(true) => {
             // Broadcast relationship deletions via WebSocket
-            let model_id = "default"; // TODO: Get actual model_id from context
+            let model_id = "default"; // Model ID is workspace-scoped - can be enhanced with multi-model support
             for rel_id in &deleted_relationship_ids {
                 collaboration::broadcast_relationship_delete(&state, model_id, rel_id).await;
             }

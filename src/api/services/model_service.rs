@@ -778,7 +778,8 @@ impl ModelService {
 
     /// Save a table to YAML file in the git directory.
     fn save_table_to_yaml(table: &Table, git_directory_path: &Path) -> Result<()> {
-        use crate::export::ODCSExporter;
+        use crate::services::table_converter::api_table_to_sdk_table;
+        use data_modelling_sdk::export::ODCSExporter;
         use std::fs;
 
         let tables_dir = git_directory_path.join("tables");
@@ -788,7 +789,8 @@ impl ModelService {
         let yaml_file = tables_dir.join(format!("{}.yaml", table.name));
 
         // Export table to ODCS YAML format (ODCS v3.1.0)
-        let yaml_content = ODCSExporter::export_table(table, "odcs_v3_1_0");
+        let sdk_table = api_table_to_sdk_table(table);
+        let yaml_content = ODCSExporter::export_table(&sdk_table, "odcs_v3_1_0");
 
         fs::write(&yaml_file, yaml_content)
             .with_context(|| format!("Failed to write YAML file: {:?}", yaml_file))?;

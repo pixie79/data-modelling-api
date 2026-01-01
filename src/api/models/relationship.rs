@@ -36,7 +36,7 @@ pub struct VisualMetadata {
     pub label_position: Option<ConnectionPoint>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Relationship {
     pub id: Uuid,
     pub source_table_id: Uuid,

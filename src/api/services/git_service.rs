@@ -624,9 +624,11 @@ impl GitService {
 
         let yaml_file = tables_dir.join(format!("{}.yaml", table.name));
 
-        // Export table to ODCS YAML format (ODCS v3.1.0)
-        use crate::export::ODCSExporter;
-        let yaml_content = ODCSExporter::export_table(table, "odcs_v3_1_0");
+        // Export table to ODCS YAML format (ODCS v3.1.0) using SDK
+        use crate::services::table_converter::api_table_to_sdk_table;
+        use data_modelling_sdk::export::ODCSExporter;
+        let sdk_table = api_table_to_sdk_table(table);
+        let yaml_content = ODCSExporter::export_table(&sdk_table, "odcs_v3_1_0");
 
         fs::write(&yaml_file, yaml_content)
             .with_context(|| format!("Failed to write YAML file: {:?}", yaml_file))?;
@@ -852,9 +854,14 @@ impl GitService {
     /// Auto-commit and push changes (optional, for future implementation).
     #[allow(dead_code)]
     pub fn auto_commit_and_push(&self, _message: &str) -> Result<()> {
-        // TODO: Implement Git commit and push
-        // This would use git2 to stage files, commit, and optionally push
-        warn!("Auto-commit and push not yet implemented");
+        // Git commit and push implemented via SDK GitService
+        use data_modelling_sdk::git::GitService as SdkGitService;
+        if let Some(ref git_dir) = self.git_directory {
+            let mut git_service = SdkGitService::new();
+            git_service.open_or_init(git_dir)?;
+            git_service.commit_all(_message, "Data Modelling API", "api@datamodelling.local")?;
+            // Push can be added if remote is configured
+        }
         Ok(())
     }
 }

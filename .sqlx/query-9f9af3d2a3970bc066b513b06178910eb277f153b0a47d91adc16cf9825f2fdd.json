@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO cross_domain_refs (id, target_domain_id, source_domain_id, table_id, display_alias, position_x, position_y, notes, created_at)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Float8",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9f9af3d2a3970bc066b513b06178910eb277f153b0a47d91adc16cf9825f2fdd"
+}

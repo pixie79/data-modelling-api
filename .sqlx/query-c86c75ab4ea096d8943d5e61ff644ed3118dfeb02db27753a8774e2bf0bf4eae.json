@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE cross_domain_refs\n            SET display_alias = COALESCE($1, display_alias),\n                position_x = COALESCE($2, position_x),\n                position_y = COALESCE($3, position_y),\n                notes = COALESCE($4, notes)\n            WHERE id = $5\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Float8",
+        "Float8",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c86c75ab4ea096d8943d5e61ff644ed3118dfeb02db27753a8774e2bf0bf4eae"
+}

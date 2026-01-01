@@ -13,7 +13,7 @@ pub struct Position {
     pub y: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Table {
     pub id: Uuid,
     pub name: String,

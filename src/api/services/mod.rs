@@ -18,6 +18,7 @@ pub mod odcs_parser;
 pub mod protobuf_parser;
 pub mod relationship_service;
 pub mod sql_parser;
+pub mod table_converter;
 
 // Re-export for convenience
 #[allow(unused_imports)]

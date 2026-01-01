@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO collaboration_participants (id, session_id, user_id, permission, joined_at, last_seen, is_online)\n            VALUES ($1, $2, $3, $4, $5, $6, true)\n            ON CONFLICT (session_id, user_id) DO UPDATE SET\n                permission = $4,\n                is_online = true,\n                last_seen = $6\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "29ea035f5a1d129bfa218403d9a4ed43b05748f60a2c4ce0967c12b9c1c90d1c"
+}

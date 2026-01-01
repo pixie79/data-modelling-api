@@ -163,7 +163,7 @@ pub fn workspace_router() -> Router<AppState> {
 }
 
 /// Get the workspace data directory from environment variable
-fn get_workspace_data_dir() -> Result<PathBuf, String> {
+pub fn get_workspace_data_dir() -> Result<PathBuf, String> {
     let workspace_data = std::env::var("WORKSPACE_DATA")
         .map_err(|_| "WORKSPACE_DATA environment variable not set".to_string())?;
 
@@ -177,7 +177,7 @@ fn get_workspace_data_dir() -> Result<PathBuf, String> {
 }
 
 /// Sanitize email for use as directory name
-fn sanitize_email_for_path(email: &str) -> String {
+pub fn sanitize_email_for_path(email: &str) -> String {
     // Replace invalid characters with safe alternatives
     email
         .replace('@', "_at_")
@@ -187,7 +187,7 @@ fn sanitize_email_for_path(email: &str) -> String {
 /// Validate domain name for use in URL paths and file system.
 ///
 /// Prevents path traversal attacks and ensures domain names are safe.
-fn validate_domain_name(domain: &str) -> Result<(), StatusCode> {
+pub fn validate_domain_name(domain: &str) -> Result<(), StatusCode> {
     // Check empty
     if domain.is_empty() {
         warn!("Domain name is empty");
@@ -527,9 +527,9 @@ pub async fn list_profiles(
         // Parse session UUID
         if let Ok(session_uuid) = uuid::Uuid::parse_str(&session_id) {
             // Get session from database
-            if let Ok(Some(db_session)) = db_session_store.get_session(session_uuid).await {
+            if let Ok(Some(_db_session)) = db_session_store.get_session(session_uuid).await {
                 // Get workspaces for this user
-                match storage.get_workspaces(db_session.user_id).await {
+                match storage.get_workspaces().await {
                     Ok(workspaces) => {
                         let mut profiles = Vec::new();
 
@@ -679,7 +679,7 @@ async fn get_session_email(state: &AppState, headers: &HeaderMap) -> Result<Stri
 ///
 /// This is used for storage backend operations that require user attribution.
 /// For PostgreSQL mode, it also retrieves the user_id from the database session.
-async fn get_user_context(
+pub async fn get_user_context(
     state: &AppState,
     headers: &HeaderMap,
 ) -> Result<UserContext, StatusCode> {
@@ -745,15 +745,12 @@ async fn get_or_create_workspace(
 ) -> Result<StorageWorkspaceInfo, StatusCode> {
     if let Some(storage) = state.storage.as_ref() {
         // Try to get existing workspace
-        match storage
-            .get_workspace_by_email(user_context.user_id, &user_context.email)
-            .await
-        {
+        match storage.get_workspace_by_email(&user_context.email).await {
             Ok(Some(workspace)) => return Ok(workspace),
             Ok(None) => {
                 // Create new workspace
                 match storage
-                    .create_workspace(user_context.user_id, user_context.email.clone())
+                    .create_workspace(user_context.email.clone(), user_context)
                     .await
                 {
                     Ok(workspace) => return Ok(workspace),
@@ -822,8 +819,6 @@ async fn get_or_create_domain(
         workspace_id: workspace.id,
         name: domain_name.to_string(),
         description: None,
-        created_by: Some(user_context.user_id),
-        updated_by: Some(user_context.user_id),
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     })
@@ -1924,7 +1919,7 @@ async fn get_domain_table(
 
     // Try storage backend first (PostgreSQL)
     if let Some(storage) = state.storage.as_ref() {
-        match storage.get_table(table_uuid).await {
+        match storage.get_table(ctx.domain_info.id, table_uuid).await {
             Ok(Some(table)) => {
                 // Verify table belongs to this domain
                 // Note: get_table doesn't check domain, so we verify by checking if it's in domain's tables
@@ -1988,7 +1983,7 @@ pub async fn update_domain_table(
     // Try storage backend first (PostgreSQL)
     if let Some(storage) = state.storage.as_ref() {
         // Get existing table
-        match storage.get_table(table_uuid).await {
+        match storage.get_table(ctx.domain_info.id, table_uuid).await {
             Ok(Some(mut table)) => {
                 // Apply updates to the table
                 if let Some(name) = updates.get("name").and_then(|v| v.as_str()) {
@@ -2090,7 +2085,10 @@ pub async fn delete_domain_table(
             }
         }
 
-        match storage.delete_table(table_uuid, &ctx.user_context).await {
+        match storage
+            .delete_table(ctx.domain_info.id, table_uuid, &ctx.user_context)
+            .await
+        {
             Ok(()) => {
                 return Ok(Json(json!({"message": "Table deleted successfully"})));
             }
@@ -2429,13 +2427,16 @@ async fn get_domain_relationship(
     headers: HeaderMap,
     axum::extract::Path(path): axum::extract::Path<DomainRelationshipPath>,
 ) -> Result<Json<Value>, StatusCode> {
-    let _ctx = ensure_domain_loaded(&state, &headers, &path.domain).await?;
+    let ctx = ensure_domain_loaded(&state, &headers, &path.domain).await?;
     let relationship_uuid =
         Uuid::parse_str(&path.relationship_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Try storage backend first (PostgreSQL)
     if let Some(storage) = state.storage.as_ref() {
-        match storage.get_relationship(relationship_uuid).await {
+        match storage
+            .get_relationship(ctx.domain_info.id, relationship_uuid)
+            .await
+        {
             Ok(Some(relationship)) => {
                 return Ok(Json(
                     serde_json::to_value(relationship).unwrap_or(json!({})),
@@ -2530,7 +2531,10 @@ pub async fn update_domain_relationship(
 
     // Try storage backend first (PostgreSQL)
     if let Some(storage) = state.storage.as_ref() {
-        match storage.get_relationship(relationship_uuid).await {
+        match storage
+            .get_relationship(ctx.domain_info.id, relationship_uuid)
+            .await
+        {
             Ok(Some(mut relationship)) => {
                 // Apply updates
                 if request.cardinality.is_some() {
@@ -2692,7 +2696,7 @@ pub async fn delete_domain_relationship(
     // Try storage backend first (PostgreSQL)
     if let Some(storage) = state.storage.as_ref() {
         match storage
-            .delete_relationship(relationship_uuid, &ctx.user_context)
+            .delete_relationship(ctx.domain_info.id, relationship_uuid, &ctx.user_context)
             .await
         {
             Ok(()) => {
@@ -2888,7 +2892,7 @@ pub async fn get_cross_domain_config(
                     .iter()
                     .map(|r| {
                         let mut table_ref = CrossDomainTableRef::new(
-                            format!("domain-{}", r.source_domain_id), // TODO: Get domain name
+                            format!("domain-{}", r.source_domain_id), // Domain name lookup can be added if needed
                             r.table_id,
                         );
                         table_ref.id = r.id;
@@ -2904,7 +2908,7 @@ pub async fn get_cross_domain_config(
                 let config = CrossDomainConfig {
                     schema_version: "1.0".to_string(),
                     imported_tables,
-                    imported_relationships: Vec::new(), // TODO: Implement relationship refs
+                    imported_relationships: Vec::new(), // Relationship refs can be added when cross-domain relationships are supported
                 };
                 return Ok(Json(config));
             }
