@@ -75,7 +75,7 @@ async fn map_git_directory(
     model_service.set_current_model(model.clone());
 
     let model_json = serde_json::to_value(&model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     // Convert orphaned relationships to JSON values
     let orphaned_rels_json: Vec<Value> = orphaned_relationships
         .into_iter()

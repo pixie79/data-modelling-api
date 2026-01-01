@@ -1,26 +1,24 @@
 use axum::{
-    body::Body,
-    http::{header, HeaderValue, StatusCode, Uri},
-    response::{Json, Response},
-    routing::get,
     Router,
+    body::Body,
+    http::{HeaderValue, StatusCode, Uri, header},
+    response::{Json, Redirect, Response},
+    routing::get,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::error::Error as StdError;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tower::ServiceBuilder;
-use tower_http::{
-    cors::CorsLayer,
-    services::ServeDir,
-    trace::TraceLayer,
-};
-use tracing::{info, warn};
+use tower_http::{services::ServeDir, trace::TraceLayer};
+use tracing::{error, info, warn};
 
 mod middleware;
 mod models;
+mod openapi;
 mod routes;
 mod services;
+mod storage;
 
 // DrawIO and Export modules are at crate root - add them to binary's module tree
 #[path = "../drawio/mod.rs"]
@@ -29,7 +27,7 @@ mod drawio;
 #[path = "../export/mod.rs"]
 mod export;
 
-use routes::create_api_router;
+// create_api_router is used via routes::create_api_router() call
 
 // Panic hook to catch and log panics
 fn setup_panic_hook() {
@@ -95,47 +93,86 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
     // Determine frontend static files directory
     // In production: frontend-dioxus/dist (built Dioxus app) or frontend-react/dist (React app)
     // In development: can be empty (frontend served separately)
-    let frontend_dir = std::env::var("FRONTEND_DIR")
-        .unwrap_or_else(|_| "frontend-dioxus/dist".to_string());
+    let frontend_dir =
+        std::env::var("FRONTEND_DIR").unwrap_or_else(|_| "frontend-dioxus/dist".to_string());
     let frontend_path = PathBuf::from(&frontend_dir);
-    
+
     // Determine WASM files directory (relative to frontend dist or separate)
     // WASM files can be in frontend/dist/wasm (after build) or frontend/public/wasm (source)
-    let wasm_dir = std::env::var("WASM_DIR")
-        .unwrap_or_else(|_| {
-            // Check if wasm exists in dist first, then fallback to public
-            let dist_wasm = format!("{}/wasm", frontend_dir);
-            let dist_wasm_path = PathBuf::from(&dist_wasm);
-            if dist_wasm_path.exists() {
-                dist_wasm
-            } else if frontend_dir != "frontend/dist" {
-                format!("{}/wasm", frontend_dir)
-            } else {
-                "frontend/public/wasm".to_string()
-            }
-        });
+    let wasm_dir = std::env::var("WASM_DIR").unwrap_or_else(|_| {
+        // Check if wasm exists in dist first, then fallback to public
+        let dist_wasm = format!("{}/wasm", frontend_dir);
+        let dist_wasm_path = PathBuf::from(&dist_wasm);
+        if dist_wasm_path.exists() {
+            dist_wasm
+        } else if frontend_dir != "frontend/dist" {
+            format!("{}/wasm", frontend_dir)
+        } else {
+            "frontend/public/wasm".to_string()
+        }
+    });
     let wasm_path = PathBuf::from(&wasm_dir);
 
-    eprintln!("[6] Frontend directory: {:?}, exists: {}", frontend_path, frontend_path.exists());
-    eprintln!("[7] WASM directory: {:?}, exists: {}", wasm_path, wasm_path.exists());
+    eprintln!(
+        "[6] Frontend directory: {:?}, exists: {}",
+        frontend_path,
+        frontend_path.exists()
+    );
+    eprintln!(
+        "[7] WASM directory: {:?}, exists: {}",
+        wasm_path,
+        wasm_path.exists()
+    );
 
     // Build main app - apply with_state FIRST, then layers
     // This ensures router becomes Router<()> before middleware is applied
     eprintln!("[8] Building main app router...");
-    let app_state = routes::create_app_state();
+
+    // Create app state with storage initialization
+    // This will use PostgreSQL or file-based storage based on STORAGE_BACKEND env var
+    info!("Initializing storage backend...");
+    let app_state = match routes::create_app_state_with_storage().await {
+        Ok(state) => {
+            info!("✓ Storage backend initialization completed");
+            state
+        }
+        Err(e) => {
+            error!("✗ Storage backend initialization failed: {}", e);
+            warn!("  Falling back to default file-based storage (no database)");
+            routes::create_app_state()
+        }
+    };
+
+    // Start session cleanup background task if using PostgreSQL
+    if let Some(db) = app_state.database() {
+        info!("Starting session cleanup background task");
+        let db_clone = db.clone();
+        tokio::spawn(async move {
+            storage::session_store::start_session_cleanup_task(db_clone).await;
+        });
+    }
 
     // Build the main router: health checks + API routes nested under /api/v1
     // Nest the API router (with AppState) first, then add other routes
     let mut app = Router::new()
         .route("/health", get(health_check))
         .route("/api/v1/health", get(health_check))
+        // Redirect root-level openapi.json and swagger to the correct paths
+        .route(
+            "/openapi.json",
+            get(|| async { Redirect::permanent("/api/v1/openapi.json") }),
+        )
+        .route(
+            "/swagger",
+            get(|| async { Redirect::permanent("/api/v1/swagger") }),
+        )
         .nest("/api/v1", routes::create_api_router(app_state.clone()));
 
     // Add static file serving for frontend and WASM if directories exist
     if frontend_path.exists() {
         info!("Serving frontend from: {:?}", frontend_path);
         eprintln!("[8a] Frontend path exists, setting up static file serving");
-        
+
         // Serve WASM files at root (/) so they're accessible at /data-modeller/... etc.
         // Files in wasm/data-modeller/ will be accessible at /data-modeller/
         // This must come after API routes but before frontend assets to avoid conflicts
@@ -147,23 +184,27 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
             if let Ok(entries) = std::fs::read_dir(&wasm_path) {
                 let mut wasm_dirs_found = 0;
                 for entry in entries.flatten() {
-                    if let Ok(file_type) = entry.file_type() {
-                        if file_type.is_dir() {
-                            let dir_name = entry.file_name();
-                            let dir_name_str = dir_name.to_string_lossy();
-                            let dir_path = entry.path();
-                            let route_path = format!("/{}", dir_name_str);
-                            wasm_dirs_found += 1;
-                            info!("Serving WASM subdirectory {:?} at {}", dir_path, route_path);
-                            eprintln!("[8c] Found WASM subdirectory: {} -> {}", route_path, dir_path.display());
-                            app = app.nest_service(
-                                route_path.as_str(),
-                                ServeDir::new(&dir_path)
-                                    .append_index_html_on_directories(false)
-                                    .precompressed_gzip()
-                                    .precompressed_br(),
-                            );
-                        }
+                    if let Ok(file_type) = entry.file_type()
+                        && file_type.is_dir()
+                    {
+                        let dir_name = entry.file_name();
+                        let dir_name_str = dir_name.to_string_lossy();
+                        let dir_path = entry.path();
+                        let route_path = format!("/{}", dir_name_str);
+                        wasm_dirs_found += 1;
+                        info!("Serving WASM subdirectory {:?} at {}", dir_path, route_path);
+                        eprintln!(
+                            "[8c] Found WASM subdirectory: {} -> {}",
+                            route_path,
+                            dir_path.display()
+                        );
+                        app = app.nest_service(
+                            route_path.as_str(),
+                            ServeDir::new(&dir_path)
+                                .append_index_html_on_directories(false)
+                                .precompressed_gzip()
+                                .precompressed_br(),
+                        );
                     }
                 }
                 eprintln!("[8d] Total WASM subdirectories found: {}", wasm_dirs_found);
@@ -178,7 +219,7 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
         // This must come before the SPA fallback route
         app = app.nest_service(
             "/assets",
-            ServeDir::new(&frontend_path.join("assets"))
+            ServeDir::new(frontend_path.join("assets"))
                 .append_index_html_on_directories(false)
                 .precompressed_gzip()
                 .precompressed_br(),
@@ -193,7 +234,10 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
                 .precompressed_br(),
         );
     } else {
-        warn!("Frontend directory not found: {:?}. Frontend will not be served.", frontend_path);
+        warn!(
+            "Frontend directory not found: {:?}. Frontend will not be served.",
+            frontend_path
+        );
         warn!("Set FRONTEND_DIR environment variable to enable frontend serving.");
         // Add SPA fallback for when frontend is served separately (dev mode)
         app = app.fallback(serve_spa_fallback);
@@ -202,10 +246,14 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
     let app = app.with_state(app_state);
 
     // Apply middleware layers
+    // Note: Rate limiting is configured via environment variables:
+    // - RATE_LIMIT_ENABLED: true/false (default: true in production)
+    // - RATE_LIMIT_REQUESTS_PER_SECOND: requests per second (default: 10)
+    // - RATE_LIMIT_BURST_SIZE: burst size (default: 50)
     let app = app.layer(
         ServiceBuilder::new()
             .layer(TraceLayer::new_for_http())
-            .layer(CorsLayer::permissive()),
+            .layer(middleware::cors::create_cors_layer_from_env()),
     );
     eprintln!("[9] App router built with state and middleware");
 
@@ -247,7 +295,7 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
     // Note: Graceful shutdown is currently disabled (commented out below)
     #[cfg(unix)]
     let _shutdown_signal = async {
-        use tokio::signal::unix::{signal, SignalKind};
+        use tokio::signal::unix::{SignalKind, signal};
         let mut sigterm =
             signal(SignalKind::terminate()).expect("Failed to install SIGTERM handler");
         tokio::select! {
@@ -311,11 +359,11 @@ async fn main() -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
     Ok(())
 }
 
-async fn health_check(_state: axum::extract::State<routes::tables::AppState>) -> Json<Value> {
+async fn health_check() -> Json<Value> {
     Json(json!({
         "status": "ok",
-        "service": "modelling-api",
-        "version": "0.1.0"
+        "service": "data-modelling-api",
+        "version": "1.0.0"
     }))
 }
 
@@ -360,9 +408,12 @@ async fn serve_spa_fallback(uri: Uri) -> Result<Response<Body>, StatusCode> {
 </html>
     "#;
 
-    Ok(Response::builder()
+    Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"))
+        .header(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/html; charset=utf-8"),
+        )
         .body(Body::from(html))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }

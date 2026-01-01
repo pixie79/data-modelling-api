@@ -5,7 +5,7 @@
 //! - Refresh tokens: Longer-lived (7 days) for obtaining new access tokens
 
 use chrono::{Duration, Utc};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -57,7 +57,7 @@ pub struct JwtService {
 
 impl JwtService {
     /// Create a new JWT service with the given secret
-    /// 
+    ///
     /// # Arguments
     /// * `secret` - The secret key for signing tokens (should be at least 32 bytes)
     pub fn new(secret: &str) -> Self {
@@ -69,19 +69,78 @@ impl JwtService {
         }
     }
 
-    /// Create a new JWT service from environment variable
-    /// Falls back to a default secret in development (NOT for production!)
+    /// Create a new JWT service from environment variables.
+    ///
+    /// In production (APP_ENV != "development"), this will panic if JWT_SECRET is not set.
+    /// In development, falls back to an insecure default secret with a warning.
+    ///
+    /// # Panics
+    /// Panics in production if JWT_SECRET environment variable is not set.
     pub fn from_env() -> Self {
-        let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| {
-            warn!("JWT_SECRET not set! Using default secret. DO NOT USE IN PRODUCTION!");
-            "dev-secret-do-not-use-in-production-change-me-now".to_string()
-        });
-        
+        let app_env = std::env::var("APP_ENV").unwrap_or_else(|_| "production".to_string());
+        let is_development = app_env.to_lowercase() == "development";
+
+        let secret = match std::env::var("JWT_SECRET") {
+            Ok(s) => s,
+            Err(_) => {
+                if is_development {
+                    warn!(
+                        "JWT_SECRET not set! Using default secret for development. DO NOT USE IN PRODUCTION!"
+                    );
+                    "dev-secret-do-not-use-in-production-change-me-now".to_string()
+                } else {
+                    panic!(
+                        "CRITICAL: JWT_SECRET environment variable is required in production. Set APP_ENV=development to use default secret."
+                    );
+                }
+            }
+        };
+
         if secret.len() < 32 {
-            warn!("JWT_SECRET is less than 32 characters. Consider using a longer secret.");
+            if is_development {
+                warn!("JWT_SECRET is less than 32 characters. Consider using a longer secret.");
+            } else {
+                panic!("CRITICAL: JWT_SECRET must be at least 32 characters in production.");
+            }
         }
-        
+
         Self::new(&secret)
+    }
+
+    /// Try to create a JWT service from environment variables.
+    ///
+    /// Returns an error if JWT_SECRET is not set or is too short in production.
+    /// This is the safer alternative to `from_env()` for graceful error handling.
+    #[allow(dead_code)]
+    pub fn try_from_env() -> Result<Self, String> {
+        let app_env = std::env::var("APP_ENV").unwrap_or_else(|_| "production".to_string());
+        let is_development = app_env.to_lowercase() == "development";
+
+        let secret = match std::env::var("JWT_SECRET") {
+            Ok(s) => s,
+            Err(_) => {
+                if is_development {
+                    warn!(
+                        "JWT_SECRET not set! Using default secret for development. DO NOT USE IN PRODUCTION!"
+                    );
+                    "dev-secret-do-not-use-in-production-change-me-now".to_string()
+                } else {
+                    return Err(
+                        "JWT_SECRET environment variable is required in production".to_string()
+                    );
+                }
+            }
+        };
+
+        if secret.len() < 32 {
+            if is_development {
+                warn!("JWT_SECRET is less than 32 characters. Consider using a longer secret.");
+            } else {
+                return Err("JWT_SECRET must be at least 32 characters in production".to_string());
+            }
+        }
+
+        Ok(Self::new(&secret))
     }
 
     /// Generate a token pair (access + refresh) for a user
@@ -93,7 +152,7 @@ impl JwtService {
         session_id: &str,
     ) -> Result<TokenPair, String> {
         let now = Utc::now();
-        
+
         // Access token
         let access_exp = now + self.access_token_duration;
         let access_claims = Claims {
@@ -105,10 +164,10 @@ impl JwtService {
             token_type: TokenType::Access,
             session_id: session_id.to_string(),
         };
-        
+
         let access_token = encode(&Header::default(), &access_claims, &self.encoding_key)
             .map_err(|e| format!("Failed to encode access token: {}", e))?;
-        
+
         // Refresh token
         let refresh_exp = now + self.refresh_token_duration;
         let refresh_claims = Claims {
@@ -120,15 +179,15 @@ impl JwtService {
             token_type: TokenType::Refresh,
             session_id: session_id.to_string(),
         };
-        
+
         let refresh_token = encode(&Header::default(), &refresh_claims, &self.encoding_key)
             .map_err(|e| format!("Failed to encode refresh token: {}", e))?;
-        
+
         info!(
             "Generated token pair for user {} (session: {}), access expires: {}, refresh expires: {}",
             email, session_id, access_exp, refresh_exp
         );
-        
+
         Ok(TokenPair {
             access_token,
             refresh_token,
@@ -141,22 +200,22 @@ impl JwtService {
     /// Validate an access token and return the claims
     pub fn validate_access_token(&self, token: &str) -> Result<Claims, String> {
         let token_data = self.decode_token(token)?;
-        
+
         if token_data.claims.token_type != TokenType::Access {
             return Err("Invalid token type: expected access token".to_string());
         }
-        
+
         Ok(token_data.claims)
     }
 
     /// Validate a refresh token and return the claims
     pub fn validate_refresh_token(&self, token: &str) -> Result<Claims, String> {
         let token_data = self.decode_token(token)?;
-        
+
         if token_data.claims.token_type != TokenType::Refresh {
             return Err("Invalid token type: expected refresh token".to_string());
         }
-        
+
         Ok(token_data.claims)
     }
 
@@ -164,28 +223,21 @@ impl JwtService {
     fn decode_token(&self, token: &str) -> Result<TokenData<Claims>, String> {
         let mut validation = Validation::default();
         validation.validate_exp = true;
-        
-        decode::<Claims>(token, &self.decoding_key, &validation)
-            .map_err(|e| {
-                match e.kind() {
-                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
-                        "Token has expired".to_string()
-                    }
-                    jsonwebtoken::errors::ErrorKind::InvalidToken => {
-                        "Invalid token format".to_string()
-                    }
-                    jsonwebtoken::errors::ErrorKind::InvalidSignature => {
-                        "Invalid token signature".to_string()
-                    }
-                    _ => format!("Token validation failed: {}", e)
-                }
-            })
+
+        decode::<Claims>(token, &self.decoding_key, &validation).map_err(|e| match e.kind() {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => "Token has expired".to_string(),
+            jsonwebtoken::errors::ErrorKind::InvalidToken => "Invalid token format".to_string(),
+            jsonwebtoken::errors::ErrorKind::InvalidSignature => {
+                "Invalid token signature".to_string()
+            }
+            _ => format!("Token validation failed: {}", e),
+        })
     }
 
     /// Generate a new access token from a valid refresh token
     pub fn refresh_access_token(&self, refresh_token: &str) -> Result<TokenPair, String> {
         let claims = self.validate_refresh_token(refresh_token)?;
-        
+
         // Generate new token pair with same session ID
         self.generate_token_pair(
             &claims.sub,
@@ -198,7 +250,7 @@ impl JwtService {
     /// Extract bearer token from Authorization header
     pub fn extract_bearer_token(auth_header: &str) -> Option<&str> {
         if auth_header.starts_with("Bearer ") {
-            Some(&auth_header[7..])
+            auth_header.strip_prefix("Bearer ")
         } else {
             None
         }
@@ -215,23 +267,24 @@ mod tests {
     #[test]
     fn test_token_generation_and_validation() {
         let service = JwtService::new("test-secret-key-at-least-32-chars");
-        
-        let token_pair = service.generate_token_pair(
-            "test@example.com",
-            12345,
-            "testuser",
-            "session-123",
-        ).unwrap();
-        
+
+        let token_pair = service
+            .generate_token_pair("test@example.com", 12345, "testuser", "session-123")
+            .unwrap();
+
         // Validate access token
-        let claims = service.validate_access_token(&token_pair.access_token).unwrap();
+        let claims = service
+            .validate_access_token(&token_pair.access_token)
+            .unwrap();
         assert_eq!(claims.sub, "test@example.com");
         assert_eq!(claims.github_id, 12345);
         assert_eq!(claims.github_username, "testuser");
         assert_eq!(claims.token_type, TokenType::Access);
-        
+
         // Validate refresh token
-        let refresh_claims = service.validate_refresh_token(&token_pair.refresh_token).unwrap();
+        let refresh_claims = service
+            .validate_refresh_token(&token_pair.refresh_token)
+            .unwrap();
         assert_eq!(refresh_claims.sub, "test@example.com");
         assert_eq!(refresh_claims.token_type, TokenType::Refresh);
     }
@@ -239,18 +292,15 @@ mod tests {
     #[test]
     fn test_wrong_token_type() {
         let service = JwtService::new("test-secret-key-at-least-32-chars");
-        
-        let token_pair = service.generate_token_pair(
-            "test@example.com",
-            12345,
-            "testuser",
-            "session-123",
-        ).unwrap();
-        
+
+        let token_pair = service
+            .generate_token_pair("test@example.com", 12345, "testuser", "session-123")
+            .unwrap();
+
         // Try to validate access token as refresh token
         let result = service.validate_refresh_token(&token_pair.access_token);
         assert!(result.is_err());
-        
+
         // Try to validate refresh token as access token
         let result = service.validate_access_token(&token_pair.refresh_token);
         assert!(result.is_err());
@@ -259,7 +309,7 @@ mod tests {
     #[test]
     fn test_invalid_token() {
         let service = JwtService::new("test-secret-key-at-least-32-chars");
-        
+
         let result = service.validate_access_token("invalid.token.here");
         assert!(result.is_err());
     }
@@ -267,18 +317,19 @@ mod tests {
     #[test]
     fn test_token_refresh() {
         let service = JwtService::new("test-secret-key-at-least-32-chars");
-        
-        let original_pair = service.generate_token_pair(
-            "test@example.com",
-            12345,
-            "testuser",
-            "session-123",
-        ).unwrap();
-        
-        let new_pair = service.refresh_access_token(&original_pair.refresh_token).unwrap();
-        
+
+        let original_pair = service
+            .generate_token_pair("test@example.com", 12345, "testuser", "session-123")
+            .unwrap();
+
+        let new_pair = service
+            .refresh_access_token(&original_pair.refresh_token)
+            .unwrap();
+
         // New access token should be valid
-        let claims = service.validate_access_token(&new_pair.access_token).unwrap();
+        let claims = service
+            .validate_access_token(&new_pair.access_token)
+            .unwrap();
         assert_eq!(claims.sub, "test@example.com");
         assert_eq!(claims.session_id, "session-123");
     }
@@ -289,14 +340,7 @@ mod tests {
             JwtService::extract_bearer_token("Bearer abc123"),
             Some("abc123")
         );
-        assert_eq!(
-            JwtService::extract_bearer_token("bearer abc123"),
-            None
-        );
-        assert_eq!(
-            JwtService::extract_bearer_token("abc123"),
-            None
-        );
+        assert_eq!(JwtService::extract_bearer_token("bearer abc123"), None);
+        assert_eq!(JwtService::extract_bearer_token("abc123"), None);
     }
 }
-

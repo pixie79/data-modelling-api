@@ -27,6 +27,7 @@ pub struct DataModel {
 }
 
 impl DataModel {
+    #[allow(dead_code)]
     pub fn new(name: String, git_directory_path: String, control_file_path: String) -> Self {
         let now = Utc::now();
         Self {
@@ -76,6 +77,7 @@ impl DataModel {
             .find(|t| t.get_unique_key() == target_key)
     }
 
+    #[allow(dead_code)]
     pub fn get_relationships_for_table(&self, table_id: Uuid) -> Vec<&Relationship> {
         self.relationships
             .iter()

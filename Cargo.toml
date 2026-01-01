@@ -1,10 +1,11 @@
 [package]
 name = "data-modelling-api"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
+version = "1.0.0"
+edition = "2024"
+authors = ["Mark Olliver <mark@olliver.me.uk>"]
+license = "MIT"
+repository = "https://github.com/pixie79/data-modelling-api"
+description = "Data Modelling API for open data modelling based around ODCS formats"
 
 [lib]
 name = "data_modelling_api"
@@ -17,28 +18,46 @@ path = "src/api/main.rs"
 
 [dependencies]
 # SDK - shared types and utilities
-data-modelling-sdk = { workspace = true, features = ["api-backend"] }
+# Note: Update this to use a published version or git dependency when SDK is published
+data-modelling-sdk = { path = "../data-modelling-sdk", features = ["api-backend", "git"] }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "multipart", "tokio", "ws"] }
-tokio.workspace = true
+tokio = { version = "1", features = ["full"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
 futures-util = "0.3"
 
-# Serialization (from workspace)
-serde.workspace = true
-serde_json.workspace = true
+# OpenAPI documentation
+utoipa = { version = "4.2", features = ["axum_extras", "chrono", "uuid"] }
+
+# Rate limiting
+governor = "0.8"
+axum-extra = { version = "0.10", features = ["typed-header"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 serde_yaml = "0.9"
 
 # DrawIO XML
 quick-xml = { version = "0.31", features = ["serialize"] }
 
-# Git operations
-git2 = "0.15"
+# Git operations - handled through SDK (no direct git2 dependency needed)
 
-# Database
+# Database - SQLite (legacy)
 rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Database - PostgreSQL with sqlx
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",
+    "tls-native-tls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+    "migrate"
+] }
 
 # HTTP client
 reqwest = { version = "0.12", features = ["json", "native-tls", "cookies"], default-features = false }
@@ -64,14 +83,15 @@ regex = "1.10"
 yaml-rust = "0.4"
 petgraph = "0.6"
 
-# Utilities (from workspace)
-uuid.workspace = true
-chrono.workspace = true
-anyhow.workspace = true
-thiserror.workspace = true
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+thiserror = "1"
+async-trait = "0.1"
 
 # Observability - Tracing
-tracing.workspace = true
+tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-opentelemetry = "0.32"
 
@@ -85,6 +105,77 @@ opentelemetry-semantic-conventions = "0.31"
 default = []
 
 [dev-dependencies]
-cargo-tarpaulin = "0.21"
+# cargo-tarpaulin = "0.34"  # Temporarily disabled due to git2 version conflict with SDK
 tempfile = "3.8"
 axum-test = "18.3"
+once_cell = "1.19"
+serial_test = "3.0"
+
+# Test targets
+[[test]]
+name = "test_storage"
+path = "tests/unit/test_storage.rs"
+
+[[test]]
+name = "test_session_store"
+path = "tests/unit/test_session_store.rs"
+
+[[test]]
+name = "test_storage_integration"
+path = "tests/integration/test_storage_integration.rs"
+
+[[test]]
+name = "test_collaboration"
+path = "tests/unit/test_collaboration.rs"
+
+[[test]]
+name = "test_audit"
+path = "tests/unit/test_audit.rs"
+
+[[test]]
+name = "test_git_sync"
+path = "tests/unit/test_git_sync.rs"
+
+[[test]]
+name = "test_auth_session_flow"
+path = "tests/integration/test_auth_session_flow.rs"
+
+[[test]]
+name = "test_collaboration_workflow"
+path = "tests/integration/test_collaboration_workflow.rs"
+
+[[test]]
+name = "test_websocket_updates"
+path = "tests/integration/test_websocket_updates.rs"
+
+[[test]]
+name = "test_optimistic_locking"
+path = "tests/integration/test_optimistic_locking.rs"
+
+[[test]]
+name = "test_yaml_export_import"
+path = "tests/integration/test_yaml_export_import.rs"
+
+[[test]]
+name = "test_auth_routes_comprehensive"
+path = "tests/integration/test_auth_routes_comprehensive.rs"
+
+[[test]]
+name = "test_workspace_routes_comprehensive"
+path = "tests/integration/test_workspace_routes_comprehensive.rs"
+
+[[test]]
+name = "test_import_routes_comprehensive"
+path = "tests/integration/test_import_routes_comprehensive.rs"
+
+[[test]]
+name = "test_export_routes_comprehensive"
+path = "tests/integration/test_export_routes_comprehensive.rs"
+
+[[test]]
+name = "test_table_routes_comprehensive"
+path = "tests/integration/test_table_routes_comprehensive.rs"
+
+[[test]]
+name = "test_relationship_routes_comprehensive"
+path = "tests/integration/test_relationship_routes_comprehensive.rs"

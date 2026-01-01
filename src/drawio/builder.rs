@@ -107,7 +107,7 @@ impl DrawIOBuilder {
                     };
                     (color, "#FFFFFF") // White text on colored background
                 };
-                
+
                 // HTML table with centered header - exactly 4px padding on all sides
                 // Header spans full width of box
                 // Add extra padding to prevent clipping
@@ -130,7 +130,7 @@ impl DrawIOBuilder {
                     };
                     (color, "#FFFFFF") // White text on colored background
                 };
-                
+
                 // Build HTML with colored header and white body
                 // Use minimal CSS padding (2px top/bottom, 4px left, 2px right)
                 // Body content left-aligned for readability
@@ -138,7 +138,7 @@ impl DrawIOBuilder {
                     "<div style=\"padding:8px 4px 8px 4px;\"><table cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;margin:0;padding:0;table-layout:fixed;\"><tr><td style=\"background-color:{};color:{};padding:2px 0px;font-weight:bold;border-radius:0px;margin:0;line-height:1.3;text-align:center;width:100%;\">{}</td></tr><tr><td style=\"background-color:#FFFFFF;padding:0px;margin:0;line-height:1.15;text-align:left;\">",
                     header_color, text_color, table.name
                 );
-                
+
                 // Include ALL key columns including nested ones (they have dots in names)
                 // Nested columns are stored with dot notation (e.g., "customer.id", "customer.name")
                 let key_columns: Vec<&crate::models::Column> = table
@@ -178,7 +178,7 @@ impl DrawIOBuilder {
                     };
                     (color, "#FFFFFF") // White text on colored background
                 };
-                
+
                 // Build HTML with colored header and white body
                 // Use minimal CSS padding (2px top/bottom, 4px left, 2px right)
                 // Body content left-aligned for readability
@@ -186,19 +186,20 @@ impl DrawIOBuilder {
                     "<div style=\"padding:8px 4px 8px 4px;\"><table cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;margin:0;padding:0;table-layout:fixed;\"><tr><td style=\"background-color:{};color:{};padding:2px 0px;font-weight:bold;border-radius:0px;margin:0;line-height:1.3;text-align:center;width:100%;\">{}</td></tr><tr><td style=\"background-color:#FFFFFF;padding:0px;margin:0;line-height:1.15;text-align:left;\">",
                     header_color, text_color, table.name
                 );
-                
+
                 // Collect ALL columns including nested ones (they're stored with dot notation like "customer.name")
                 // IMPORTANT: Nested columns are stored as separate Column objects with dot notation in their names
                 // e.g., "customer.name", "customer.email", "cancellation.reason", etc.
                 let mut all_columns: Vec<&crate::models::Column> = table.columns.iter().collect();
-                
+
                 // Debug: Log column count to verify nested columns are present
                 let total_cols = all_columns.len();
-                let nested_cols: Vec<&crate::models::Column> = all_columns.iter()
+                let nested_cols: Vec<&crate::models::Column> = all_columns
+                    .iter()
                     .filter(|c| c.name.contains('.'))
                     .copied()
                     .collect();
-                
+
                 // Sort: top-level columns first (no dots), then nested columns in dot notation order
                 all_columns.sort_by(|a, b| {
                     let a_dots = a.name.matches('.').count();
@@ -209,23 +210,26 @@ impl DrawIOBuilder {
                         a.name.cmp(&b.name)
                     }
                 });
-                
+
                 // Log column counts to verify nested columns are present
                 let columns_count = all_columns.len();
                 tracing::info!(
                     "DrawIO export: Table '{}' has {} total columns, {} nested columns",
-                    table.name, 
-                    total_cols, 
+                    table.name,
+                    total_cols,
                     nested_cols.len()
                 );
                 if !nested_cols.is_empty() {
                     tracing::info!(
                         "DrawIO export: Nested columns for '{}': {:?}",
                         table.name,
-                        nested_cols.iter().map(|c| c.name.as_str()).collect::<Vec<_>>()
+                        nested_cols
+                            .iter()
+                            .map(|c| c.name.as_str())
+                            .collect::<Vec<_>>()
                     );
                 }
-                
+
                 // Display all columns including nested ones
                 // Nested columns will appear with their full dot notation names (e.g., "customer.name: STRING")
                 for col in &all_columns {
@@ -240,7 +244,7 @@ impl DrawIOBuilder {
                         col.name, col.data_type, nullable, key_indicator
                     ));
                 }
-                
+
                 tracing::info!(
                     "DrawIO export: Generated HTML for '{}' with {} columns (HTML length: {} chars)",
                     table.name,
@@ -315,9 +319,7 @@ impl DrawIOBuilder {
         // Always use white background - color will be applied to header via HTML
         // Set all spacing to 0 - we handle padding in HTML CSS (spacingTop/Bottom don't work with html=1)
         // align=left for cell, but header text is centered via CSS text-align:center in HTML
-        format!(
-            "rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;spacingLeft=0;spacingRight=0;spacingTop=0;spacingBottom=0;spacing=0;align=left;overflow=visible"
-        )
+        "rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;spacingLeft=0;spacingRight=0;spacingTop=0;spacingBottom=0;spacing=0;align=left;overflow=visible".to_string()
     }
 
     /// Generate edge style string based on relationship type and cardinality.
@@ -466,16 +468,25 @@ mod tests {
             updated_at: Utc::now(),
         };
 
-        builder.add_table(&table, 100.0, 200.0, None, None);
+        // Use add_table_with_level with Conceptual level to get colored HTML
+        builder.add_table_with_level(
+            &table,
+            100.0,
+            200.0,
+            None,
+            None,
+            Some(crate::models::enums::ModelingLevel::Conceptual),
+        );
 
         let document = builder.build();
         assert_eq!(document.diagram.graph_model.root.table_cells.len(), 1);
 
         let cell = &document.diagram.graph_model.root.table_cells[0];
-        assert_eq!(cell.value, "users");
+        assert!(cell.value.contains("users")); // Table name in HTML
         assert_eq!(cell.odcs_reference, Some("tables/users.yaml".to_string()));
         assert_eq!(cell.table_id, Some(table.id));
-        assert!(cell.style.contains("#FFD700")); // Gold color
+        // Gold color is applied in the HTML value header
+        assert!(cell.value.contains("#FFD700")); // Gold color in HTML header
     }
 
     #[test]
@@ -496,6 +507,7 @@ mod tests {
             foreign_key_details: None,
             etl_job_metadata: None,
             relationship_type: Some(RelationshipType::DataFlow),
+            notes: None,
             visual_metadata: None,
             drawio_edge_id: None,
             created_at: Utc::now(),

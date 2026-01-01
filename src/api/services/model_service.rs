@@ -24,6 +24,7 @@ impl ModelService {
     }
 
     /// Create a new data model.
+    #[allow(dead_code)]
     pub fn create_model(
         &mut self,
         name: String,
@@ -42,10 +43,9 @@ impl ModelService {
                         .and_then(|ext| ext.to_str())
                         .map(|ext| ext == "yaml" || ext == "yml")
                         .unwrap_or(false)
+                        && let Err(e) = std::fs::remove_file(&path)
                     {
-                        if let Err(e) = std::fs::remove_file(&path) {
-                            warn!("Failed to remove old table file {:?}: {}", path, e);
-                        }
+                        warn!("Failed to remove old table file {:?}: {}", path, e);
                     }
                 }
             }
@@ -80,14 +80,54 @@ impl ModelService {
 
     /// Load or create a model, loading existing tables from YAML files if they exist.
     /// Delegates YAML I/O to GitService to avoid code duplication.
+    ///
+    /// If `force_reload` is true, always reloads from disk even if model is already loaded.
     pub fn load_or_create_model(
         &mut self,
         name: String,
         git_directory_path: PathBuf,
         description: Option<String>,
     ) -> Result<DataModel> {
+        self.load_or_create_model_with_reload(name, git_directory_path, description, false)
+    }
+
+    /// Load or create a model with option to force reload.
+    pub fn load_or_create_model_with_reload(
+        &mut self,
+        name: String,
+        git_directory_path: PathBuf,
+        description: Option<String>,
+        force_reload: bool,
+    ) -> Result<DataModel> {
+        // Check if we already have a model loaded for this path and don't need to force reload
+        // Normalize paths for comparison (try canonicalize, fallback to string comparison)
+        // Use both canonicalized and non-canonicalized paths for comparison to handle edge cases
+        let normalized_path = git_directory_path
+            .canonicalize()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| git_directory_path.to_string_lossy().to_string());
+        let path_str = git_directory_path.to_string_lossy().to_string();
+
+        if !force_reload && let Some(ref current_model) = self.current_model {
+            // Normalize the stored path for comparison
+            let stored_path_normalized = std::path::Path::new(&current_model.git_directory_path)
+                .canonicalize()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| current_model.git_directory_path.clone());
+            let stored_path_str = current_model.git_directory_path.clone();
+
+            // Compare both canonicalized and non-canonicalized paths
+            if stored_path_normalized == normalized_path || stored_path_str == path_str {
+                info!(
+                    "Model already loaded for path {:?}, skipping reload",
+                    git_directory_path
+                );
+                return Ok(current_model.clone());
+            }
+        }
+
         use crate::services::git_service::GitService;
-        
+
         // Use GitService to load model from YAML (handles all YAML I/O)
         let mut git_service = GitService::new();
         let model = match git_service.map_git_directory(&git_directory_path) {
@@ -112,7 +152,10 @@ impl ModelService {
             }
             Err(e) => {
                 // If loading fails, create empty model
-                warn!("Failed to load model from Git directory, creating empty model: {}", e);
+                warn!(
+                    "Failed to load model from Git directory, creating empty model: {}",
+                    e
+                );
                 let control_file_path = git_directory_path.join("relationships.yaml");
                 let diagram_file_path = git_directory_path.join("diagram.drawio");
                 DataModel {
@@ -137,19 +180,21 @@ impl ModelService {
         if let Err(e) = Self::load_canvas_layout(&mut model, &git_directory_path) {
             warn!("Failed to load DrawIO XML: {}", e);
         } else {
-            info!("DrawIO XML loaded successfully, {} tables have positions", 
-                model.tables.iter().filter(|t| t.position.is_some()).count());
+            info!(
+                "DrawIO XML loaded successfully, {} tables have positions",
+                model.tables.iter().filter(|t| t.position.is_some()).count()
+            );
         }
 
         self.current_model = Some(model.clone());
         info!(
-            "[ModelService] Stored model in current_model: {} at {:?} with {} tables and {} relationships", 
-            model.name, 
-            git_directory_path, 
-            model.tables.len(), 
+            "[ModelService] Stored model in current_model: {} at {:?} with {} tables and {} relationships",
+            model.name,
+            git_directory_path,
+            model.tables.len(),
             model.relationships.len()
         );
-        
+
         // Verify relationships are actually stored
         if let Some(stored_model) = &self.current_model {
             info!(
@@ -158,7 +203,7 @@ impl ModelService {
                 stored_model.relationships.len()
             );
         }
-        
+
         Ok(model)
     }
 
@@ -232,7 +277,10 @@ impl ModelService {
 
         // Auto-save table to YAML file
         if let Err(e) = Self::save_table_to_yaml(&table_with_position, &git_path) {
-            warn!("Failed to auto-save table {} to YAML: {}", table_with_position.name, e);
+            warn!(
+                "Failed to auto-save table {} to YAML: {}",
+                table_with_position.name, e
+            );
         }
 
         info!("Added table: {}", table_with_position.name);
@@ -246,11 +294,13 @@ impl ModelService {
     }
 
     /// Get a table by name (legacy method - use get_table_by_unique_key for proper uniqueness).
+    #[allow(dead_code)]
     pub fn get_table_by_name(&self, name: &str) -> Option<&Table> {
         self.current_model.as_ref()?.get_table_by_name(name)
     }
 
     /// Get a table by unique key.
+    #[allow(dead_code)]
     pub fn get_table_by_unique_key(
         &self,
         database_type: Option<&str>,
@@ -351,7 +401,10 @@ impl ModelService {
                     "database_type" => {
                         let old_db_type = table.database_type.map(|dt| format!("{:?}", dt));
                         if value.is_null() {
-                            info!("[ModelService] Setting database_type to None for table '{}' (was: {:?})", table.name, old_db_type);
+                            info!(
+                                "[ModelService] Setting database_type to None for table '{}' (was: {:?})",
+                                table.name, old_db_type
+                            );
                             table.database_type = None;
                         } else if let Some(s) = value.as_str() {
                             let new_db_type = match s.to_uppercase().as_str() {
@@ -363,13 +416,20 @@ impl ModelService {
                                 }
                                 "AWS_GLUE" | "GLUE" => Some(DatabaseType::AwsGlue),
                                 _ => {
-                                    warn!("[ModelService] Unknown database_type value '{}' for table '{}'", s, table.name);
+                                    warn!(
+                                        "[ModelService] Unknown database_type value '{}' for table '{}'",
+                                        s, table.name
+                                    );
                                     None
                                 }
                             };
                             if let Some(ref new_type) = new_db_type {
-                                info!("[ModelService] Updated database_type for table '{}': {:?} -> {:?}",
-                                    table.name, old_db_type, format!("{:?}", new_type));
+                                info!(
+                                    "[ModelService] Updated database_type for table '{}': {:?} -> {:?}",
+                                    table.name,
+                                    old_db_type,
+                                    format!("{:?}", new_type)
+                                );
                             }
                             table.database_type = new_db_type;
                         }
@@ -529,10 +589,10 @@ impl ModelService {
         let git_path = std::path::PathBuf::from(&git_directory_path);
         if !git_directory_path.is_empty() {
             // Get immutable reference to model for saving
-            if let Some(model_ref) = self.current_model.as_ref() {
-                if let Err(e) = Self::save_canvas_layout(model_ref, &git_path) {
-                    warn!("Failed to auto-save DrawIO XML: {}", e);
-                }
+            if let Some(model_ref) = self.current_model.as_ref()
+                && let Err(e) = Self::save_canvas_layout(model_ref, &git_path)
+            {
+                warn!("Failed to auto-save DrawIO XML: {}", e);
             }
 
             // Auto-save table to YAML file
@@ -572,9 +632,9 @@ impl ModelService {
         // Delete all relationships associated with this table (cascade delete)
         if !relationships_to_delete.is_empty() {
             let initial_len = model.relationships.len();
-            model.relationships.retain(|r| {
-                r.source_table_id != table_id && r.target_table_id != table_id
-            });
+            model
+                .relationships
+                .retain(|r| r.source_table_id != table_id && r.target_table_id != table_id);
             let deleted_count = initial_len - model.relationships.len();
             info!(
                 "Deleted {} relationship(s) associated with table '{}'",
@@ -616,6 +676,7 @@ impl ModelService {
     }
 
     /// Rename a table to resolve naming conflict.
+    #[allow(dead_code)]
     pub fn resolve_naming_conflict(&mut self, table_id: Uuid, new_name: String) -> Result<Table> {
         let model = self
             .current_model
@@ -638,7 +699,7 @@ impl ModelService {
         self.current_model.as_ref()
     }
 
-    /// Ensure a model is available. 
+    /// Ensure a model is available.
     /// Returns error if no workspace has been created - user must create workspace first.
     pub fn ensure_model_available(&mut self) -> Result<()> {
         if self.current_model.is_none() {
@@ -662,11 +723,13 @@ impl ModelService {
     }
 
     /// Set the current model.
+    #[allow(dead_code)]
     pub fn set_current_model(&mut self, model: DataModel) {
         self.current_model = Some(model);
     }
 
     /// Clear the current model (reset to empty state).
+    #[allow(dead_code)]
     pub fn clear_model(&mut self) {
         self.current_model = None;
         info!("Model state cleared");
@@ -733,7 +796,6 @@ impl ModelService {
         info!("Saved table {} to {:?}", table.name, yaml_file);
         Ok(())
     }
-
 
     /// Add a table to the model even if it has errors (bypasses conflict checks).
     /// This is used when importing tables with errors that should still be saved.

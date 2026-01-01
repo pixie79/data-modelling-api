@@ -32,10 +32,10 @@ pub fn parse_sql(sql: &str) -> Result<Vec<Table>, String> {
         .collect();
 
     for statement in statements {
-        if statement.to_uppercase().starts_with("CREATE TABLE") {
-            if let Some(table) = parse_create_table(statement) {
-                tables.push(table);
-            }
+        if statement.to_uppercase().starts_with("CREATE TABLE")
+            && let Some(table) = parse_create_table(statement)
+        {
+            tables.push(table);
         }
     }
 

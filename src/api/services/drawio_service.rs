@@ -17,6 +17,7 @@ pub struct DrawIOService {
     diagram_file_path: PathBuf,
 }
 
+#[allow(dead_code)]
 impl DrawIOService {
     /// Create a new DrawIO service.
     ///
@@ -234,14 +235,13 @@ impl DrawIOService {
         let mut routing_data: HashMap<Uuid, Vec<(f64, f64)>> = HashMap::new();
 
         for edge in &document.diagram.graph_model.root.relationship_edges {
-            if let Some(relationship_id) = edge.relationship_id {
-                if let Some(ref points) = edge.geometry.points {
-                    if let Some(ref array) = points.array {
-                        let waypoints: Vec<(f64, f64)> =
-                            array.iter().map(|p: &DrawIOPoint| (p.x, p.y)).collect();
-                        routing_data.insert(relationship_id, waypoints);
-                    }
-                }
+            if let Some(relationship_id) = edge.relationship_id
+                && let Some(ref points) = edge.geometry.points
+                && let Some(ref array) = points.array
+            {
+                let waypoints: Vec<(f64, f64)> =
+                    array.iter().map(|p: &DrawIOPoint| (p.x, p.y)).collect();
+                routing_data.insert(relationship_id, waypoints);
             }
         }
 
@@ -296,8 +296,8 @@ impl DrawIOService {
     /// This is the main parsing method that converts DrawIO XML string
     /// into our internal document structure.
     pub fn parse_drawio_xml(xml_content: &str) -> Result<DrawIODocument> {
-        use quick_xml::events::Event;
         use quick_xml::Reader;
+        use quick_xml::events::Event;
 
         let mut reader = Reader::from_str(xml_content);
         reader.trim_text(true);
@@ -367,14 +367,13 @@ impl DrawIOService {
         let mut routing = HashMap::new();
 
         for edge in &document.diagram.graph_model.root.relationship_edges {
-            if let Some(relationship_id) = edge.relationship_id {
-                if let Some(ref points) = edge.geometry.points {
-                    if let Some(ref array) = points.array {
-                        let waypoints: Vec<(f64, f64)> =
-                            array.iter().map(|p: &DrawIOPoint| (p.x, p.y)).collect();
-                        routing.insert(relationship_id, waypoints);
-                    }
-                }
+            if let Some(relationship_id) = edge.relationship_id
+                && let Some(ref points) = edge.geometry.points
+                && let Some(ref array) = points.array
+            {
+                let waypoints: Vec<(f64, f64)> =
+                    array.iter().map(|p: &DrawIOPoint| (p.x, p.y)).collect();
+                routing.insert(relationship_id, waypoints);
             }
         }
 
@@ -632,6 +631,7 @@ impl DrawIOService {
         const MIN_HEIGHT: f64 = 50.0;
         // Fixed padding: exactly 4px on each side = 8px total
         const PADDING_WIDTH: f64 = 8.0; // 4px left + 4px right
+        #[allow(dead_code)]
         const PADDING_HEIGHT: f64 = 8.0; // 4px top + 4px bottom
 
         let columns_to_show = match modeling_level {
@@ -677,7 +677,7 @@ impl DrawIOService {
                 .max()
                 .unwrap_or(0),
         ) as f64;
-        
+
         // Width = exact text width + 8px (4px each side)
         let text_width = max_text_width * CHAR_WIDTH;
         let width = text_width + PADDING_WIDTH;
@@ -688,7 +688,7 @@ impl DrawIOService {
         // Column: base font size * line height (each line)
         let column_text_height = BASE_FONT_SIZE * COLUMN_LINE_HEIGHT;
         let total_text_height = header_text_height + (columns_to_show as f64 * column_text_height);
-        
+
         // Height = text height + padding (8px top + 8px bottom = 16px total)
         // Use sufficient padding to prevent clipping without excessive whitespace
         const EXTRA_PADDING: f64 = 8.0; // Padding on top and bottom

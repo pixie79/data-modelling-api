@@ -8,7 +8,8 @@ pub mod table;
 
 pub use column::Column;
 pub use data_model::DataModel;
-pub use enums::*;
+// Enums are re-exported individually where needed
+// pub use enums::*;
 #[allow(unused_imports)]
 pub use relationship::{ConnectionPoint, Relationship, VisualMetadata};
 pub use table::{Position, Table};

@@ -17,11 +17,13 @@ pub struct RelationshipService {
 
 impl RelationshipService {
     /// Create a new relationship service instance.
+    #[allow(dead_code)]
     pub fn new(model: Option<DataModel>) -> Self {
         Self { model }
     }
 
     /// Set the model for this service.
+    #[allow(dead_code)]
     pub fn set_model(&mut self, model: DataModel) {
         self.model = Some(model);
     }
@@ -136,11 +138,12 @@ impl RelationshipService {
     }
 
     /// Update a relationship.
-    /// 
-    /// Note: cardinality is Option<Option<Cardinality>> where:
+    ///
+    /// Note: cardinality is `Option<Option<Cardinality>>` where:
     /// - None = field not provided, don't update
     /// - Some(None) = clear the cardinality
     /// - Some(Some(c)) = set the cardinality
+    #[allow(clippy::too_many_arguments)]
     pub fn update_relationship(
         &mut self,
         relationship_id: Uuid,

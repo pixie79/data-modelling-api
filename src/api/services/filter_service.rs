@@ -19,6 +19,7 @@ impl FilterService {
     }
 
     /// Set the model for this service.
+    #[allow(dead_code)]
     pub fn set_model(&mut self, model: DataModel) {
         self.model = Some(model);
     }

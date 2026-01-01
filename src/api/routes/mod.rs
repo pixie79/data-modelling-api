@@ -1,32 +1,43 @@
 //! API routes module - organizes all route handlers.
-//! 
+//!
 //! All table and relationship operations are now domain-scoped under /workspace/domains/{domain}/
 
 pub mod ai;
+pub mod app_state;
+pub mod audit;
 pub mod auth;
+pub mod auth_context;
+pub mod error;
 // DrawIO routes - uses crate::drawio from lib.rs
 pub mod collaboration;
+pub mod collaboration_sessions;
 pub mod drawio;
+pub mod git_sync;
 pub mod import;
 pub mod models;
+pub mod openapi;
 // Legacy routes kept for AppState definition but not mounted
 pub mod relationships;
 pub mod tables;
 pub mod workspace;
 
 use axum::Router;
-pub use tables::AppState;
+// Re-export AppState from app_state module for backwards compatibility
+pub use app_state::AppState;
+// Legacy AppState export kept for potential backwards compatibility
+#[allow(unused_imports)]
+pub use tables::AppState as LegacyAppState;
 
 /// Create the main API router combining all route modules
-/// 
+///
 /// Note: Legacy /tables and /relationships endpoints have been removed.
 /// All table/relationship operations are now domain-scoped under:
 /// - /workspace/domains/{domain}/tables
 /// - /workspace/domains/{domain}/relationships
 pub fn create_api_router(app_state: AppState) -> Router<AppState> {
     use crate::services::oauth_service::OAuthService;
-    use std::sync::Arc;
     use std::env;
+    use std::sync::Arc;
 
     // Initialize OAuth service
     let github_client_id = env::var("GITHUB_CLIENT_ID").unwrap_or_else(|_| "".to_string());
@@ -35,7 +46,7 @@ pub fn create_api_router(app_state: AppState) -> Router<AppState> {
     // The API processes the callback and then redirects to the web client
     let github_redirect_uri = env::var("GITHUB_REDIRECT_URI")
         .unwrap_or_else(|_| "http://localhost:8081/api/v1/auth/github/callback".to_string());
-    
+
     let oauth_service = Arc::new(OAuthService::new(
         github_client_id,
         github_client_secret,
@@ -48,25 +59,40 @@ pub fn create_api_router(app_state: AppState) -> Router<AppState> {
         .nest("/import", import::import_router())
         .nest("/export", drawio::drawio_router())
         .nest("/models", models::models_router())
-        .nest("/auth", auth::auth_router(app_state.session_store.clone(), oauth_service, app_state.clone()))
+        .nest(
+            "/auth",
+            auth::auth_router(
+                app_state.session_store.clone(),
+                oauth_service,
+                app_state.clone(),
+            ),
+        )
         .nest("/ai", ai::ai_router())
+        .nest(
+            "/collaboration",
+            collaboration_sessions::collaboration_sessions_router(),
+        )
+        .nest("/audit", audit::audit_router())
+        .nest("/git", git_sync::git_sync_router())
         .merge(collaboration::collaboration_router())
+        // OpenAPI documentation endpoints
+        .merge(openapi::openapi_router())
+    // Note: State is applied by callers who need it (e.g., TestServer)
+    // For production use, call .with_state(app_state) after creating the router
 }
 
-/// Create the application state
+/// Create the application state (synchronous, for backwards compatibility).
+///
+/// Note: For PostgreSQL storage, call `init_storage()` on the returned state.
 pub fn create_app_state() -> AppState {
-    use std::collections::HashMap;
-    
-    let model_service = std::sync::Arc::new(tokio::sync::Mutex::new(
-        crate::services::ModelService::new(),
-    ));
-    
-    // Workspace will be created when user provides email via /workspace/create endpoint
-    // No auto-initialization needed - user must create workspace explicitly
-    
-    AppState {
-        model_service,
-        collaboration_channels: std::sync::Arc::new(tokio::sync::Mutex::new(HashMap::new())),
-        session_store: auth::new_session_store(),
-    }
+    AppState::new()
+}
+
+/// Create the application state with storage initialization (async).
+///
+/// This is the preferred method for production use.
+pub async fn create_app_state_with_storage() -> Result<AppState, crate::storage::StorageError> {
+    let mut state = AppState::new();
+    state.init_storage().await?;
+    Ok(state)
 }

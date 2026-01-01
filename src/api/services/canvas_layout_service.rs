@@ -59,10 +59,7 @@ impl CanvasLayoutService {
     ///
     /// Saves all table positions and relationship visual metadata.
     pub fn save_canvas_layout(&self, model: &DataModel) -> Result<()> {
-        info!(
-            "Saving canvas layout to YAML: {:?}",
-            self.layout_file_path
-        );
+        info!("Saving canvas layout to YAML: {:?}", self.layout_file_path);
 
         // Build layout structure
         let mut layout = CanvasLayout {
@@ -127,14 +124,19 @@ impl CanvasLayoutService {
         );
 
         // Read and parse YAML file
-        let yaml_content = fs::read_to_string(&self.layout_file_path)
-            .with_context(|| format!("Failed to read canvas layout from {:?}", self.layout_file_path))?;
+        let yaml_content = fs::read_to_string(&self.layout_file_path).with_context(|| {
+            format!(
+                "Failed to read canvas layout from {:?}",
+                self.layout_file_path
+            )
+        })?;
 
         let layout: CanvasLayout = serde_yaml::from_str(&yaml_content)
             .with_context(|| "Failed to parse canvas layout YAML")?;
 
         // Create maps for quick lookup
-        let mut positions: std::collections::HashMap<Uuid, Position> = std::collections::HashMap::new();
+        let mut positions: std::collections::HashMap<Uuid, Position> =
+            std::collections::HashMap::new();
         for table_layout in &layout.tables {
             if let Some(ref position) = table_layout.position {
                 positions.insert(table_layout.id, position.clone());
@@ -182,8 +184,12 @@ impl CanvasLayoutService {
     ) -> Result<()> {
         // Load existing layout or create new one
         let mut layout = if self.layout_file_path.exists() {
-            let yaml_content = fs::read_to_string(&self.layout_file_path)
-                .with_context(|| format!("Failed to read canvas layout from {:?}", self.layout_file_path))?;
+            let yaml_content = fs::read_to_string(&self.layout_file_path).with_context(|| {
+                format!(
+                    "Failed to read canvas layout from {:?}",
+                    self.layout_file_path
+                )
+            })?;
             serde_yaml::from_str::<CanvasLayout>(&yaml_content)
                 .with_context(|| "Failed to parse canvas layout YAML")?
         } else {
@@ -220,8 +226,12 @@ impl CanvasLayoutService {
     ) -> Result<()> {
         // Load existing layout or create new one
         let mut layout = if self.layout_file_path.exists() {
-            let yaml_content = fs::read_to_string(&self.layout_file_path)
-                .with_context(|| format!("Failed to read canvas layout from {:?}", self.layout_file_path))?;
+            let yaml_content = fs::read_to_string(&self.layout_file_path).with_context(|| {
+                format!(
+                    "Failed to read canvas layout from {:?}",
+                    self.layout_file_path
+                )
+            })?;
             serde_yaml::from_str::<CanvasLayout>(&yaml_content)
                 .with_context(|| "Failed to parse canvas layout YAML")?
         } else {
@@ -233,7 +243,11 @@ impl CanvasLayoutService {
         };
 
         // Find and update relationship visual metadata, or add new entry
-        if let Some(rel_layout) = layout.relationships.iter_mut().find(|r| r.id == relationship_id) {
+        if let Some(rel_layout) = layout
+            .relationships
+            .iter_mut()
+            .find(|r| r.id == relationship_id)
+        {
             rel_layout.visual_metadata = Some(visual_metadata);
         } else {
             layout.relationships.push(RelationshipLayout {

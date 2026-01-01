@@ -1,8 +1,8 @@
 //! DrawIO XML document structure.
 
 use chrono::{DateTime, Utc};
-use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::Writer;
+use quick_xml::events::{BytesEnd, BytesStart, Event};
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
@@ -277,21 +277,21 @@ impl DrawIODocument {
             writer.write_event(Event::Start(geom_elem))?;
 
             // Write waypoints if present
-            if let Some(ref points) = edge.geometry.points {
-                if let Some(ref array) = points.array {
-                    let mut array_elem = BytesStart::new("Array");
-                    array_elem.push_attribute(("as", "points"));
-                    writer.write_event(Event::Start(array_elem))?;
+            if let Some(ref points) = edge.geometry.points
+                && let Some(ref array) = points.array
+            {
+                let mut array_elem = BytesStart::new("Array");
+                array_elem.push_attribute(("as", "points"));
+                writer.write_event(Event::Start(array_elem))?;
 
-                    for point in array {
-                        let mut point_elem = BytesStart::new("mxPoint");
-                        point_elem.push_attribute(("x", point.x.to_string().as_str()));
-                        point_elem.push_attribute(("y", point.y.to_string().as_str()));
-                        writer.write_event(Event::Empty(point_elem))?;
-                    }
-
-                    writer.write_event(Event::End(BytesEnd::new("Array")))?;
+                for point in array {
+                    let mut point_elem = BytesStart::new("mxPoint");
+                    point_elem.push_attribute(("x", point.x.to_string().as_str()));
+                    point_elem.push_attribute(("y", point.y.to_string().as_str()));
+                    writer.write_event(Event::Empty(point_elem))?;
                 }
+
+                writer.write_event(Event::End(BytesEnd::new("Array")))?;
             }
 
             writer.write_event(Event::End(BytesEnd::new("mxGeometry")))?;

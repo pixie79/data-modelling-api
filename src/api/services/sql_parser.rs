@@ -8,7 +8,7 @@ use crate::models::{Column, Table};
 use anyhow::Result;
 use regex::Regex;
 use sqlparser::ast::{ColumnOption, DataType, Statement};
-use sqlparser::dialect::{dialect_from_str, GenericDialect};
+use sqlparser::dialect::{GenericDialect, dialect_from_str};
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
@@ -749,37 +749,36 @@ impl SQLParser {
 
         // Look for TBLPROPERTIES clause: TBLPROPERTIES ('key' = 'value', ...)
         let tblprops_re = Regex::new(r#"(?i)TBLPROPERTIES\s*\(([^)]+)\)"#).ok();
-        if let Some(re) = tblprops_re {
-            if let Some(captures) = re.captures(sql) {
-                if let Some(props_str) = captures.get(1) {
-                    let props_content = props_str.as_str();
+        if let Some(re) = tblprops_re
+            && let Some(captures) = re.captures(sql)
+            && let Some(props_str) = captures.get(1)
+        {
+            let props_content = props_str.as_str();
 
-                    // Parse key-value pairs: 'key' = 'value'
-                    let kv_re = Regex::new(r#"'([^']+)'\s*=\s*'([^']+)'"#).ok();
-                    if let Some(kv_re) = kv_re {
-                        for cap in kv_re.captures_iter(props_content) {
-                            if let (Some(key), Some(value)) = (cap.get(1), cap.get(2)) {
-                                let mut rule = HashMap::new();
-                                rule.insert(
-                                    "property".to_string(),
-                                    Value::String(key.as_str().to_string()),
-                                );
-                                rule.insert(
-                                    "value".to_string(),
-                                    Value::String(value.as_str().to_string()),
-                                );
+            // Parse key-value pairs: 'key' = 'value'
+            let kv_re = Regex::new(r#"'([^']+)'\s*=\s*'([^']+)'"#).ok();
+            if let Some(kv_re) = kv_re {
+                for cap in kv_re.captures_iter(props_content) {
+                    if let (Some(key), Some(value)) = (cap.get(1), cap.get(2)) {
+                        let mut rule = HashMap::new();
+                        rule.insert(
+                            "property".to_string(),
+                            Value::String(key.as_str().to_string()),
+                        );
+                        rule.insert(
+                            "value".to_string(),
+                            Value::String(value.as_str().to_string()),
+                        );
 
-                                // If it's a quality property, add it as a quality rule
-                                if key.as_str().to_lowercase() == "quality" {
-                                    rule.insert(
-                                        "type".to_string(),
-                                        Value::String("medallion_layer".to_string()),
-                                    );
-                                }
-
-                                quality_rules.push(rule);
-                            }
+                        // If it's a quality property, add it as a quality rule
+                        if key.as_str().to_lowercase() == "quality" {
+                            rule.insert(
+                                "type".to_string(),
+                                Value::String("medallion_layer".to_string()),
+                            );
                         }
+
+                        quality_rules.push(rule);
                     }
                 }
             }
@@ -808,17 +807,16 @@ impl SQLParser {
 
         // Look for TBLPROPERTIES with 'quality' = 'bronze'|'silver'|'gold'|'operational'
         let quality_re = Regex::new(r#"(?i)TBLPROPERTIES\s*\([^)]*'quality'\s*=\s*'([^']+)'"#).ok();
-        if let Some(re) = quality_re {
-            if let Some(captures) = re.captures(sql) {
-                if let Some(quality_val) = captures.get(1) {
-                    match quality_val.as_str().to_lowercase().as_str() {
-                        "bronze" => layers.push(MedallionLayer::Bronze),
-                        "silver" => layers.push(MedallionLayer::Silver),
-                        "gold" => layers.push(MedallionLayer::Gold),
-                        "operational" => layers.push(MedallionLayer::Operational),
-                        _ => {}
-                    }
-                }
+        if let Some(re) = quality_re
+            && let Some(captures) = re.captures(sql)
+            && let Some(quality_val) = captures.get(1)
+        {
+            match quality_val.as_str().to_lowercase().as_str() {
+                "bronze" => layers.push(MedallionLayer::Bronze),
+                "silver" => layers.push(MedallionLayer::Silver),
+                "gold" => layers.push(MedallionLayer::Gold),
+                "operational" => layers.push(MedallionLayer::Operational),
+                _ => {}
             }
         }
 
@@ -1219,12 +1217,11 @@ impl SQLParser {
                     if debug_str.contains("MAP<") {
                         // Extract MAP<KEY, VALUE> from debug string
                         let map_re = Regex::new(r#"MAP<([^>]+)>"#).ok();
-                        if let Some(re) = map_re {
-                            if let Some(cap) = re.captures(&debug_str) {
-                                if let Some(map_content) = cap.get(1) {
-                                    return Ok(format!("MAP<{}>", map_content.as_str()));
-                                }
-                            }
+                        if let Some(re) = map_re
+                            && let Some(cap) = re.captures(&debug_str)
+                            && let Some(map_content) = cap.get(1)
+                        {
+                            return Ok(format!("MAP<{}>", map_content.as_str()));
                         }
                     }
                     Ok("MAP".to_string())
@@ -1603,9 +1600,7 @@ impl SQLParser {
                         let added = after_count - before_count;
                         info!(
                             "Parsed STRUCT<...> for column '{}': added {} nested columns (total: {})",
-                            name,
-                            added,
-                            after_count
+                            name, added, after_count
                         );
                         if added == 0 {
                             warn!(
@@ -1663,9 +1658,7 @@ impl SQLParser {
                         let added = after_count - before_count;
                         info!(
                             "Parsed ARRAY<STRUCT<...>> for column '{}': added {} nested columns (total: {})",
-                            name,
-                            added,
-                            after_count
+                            name, added, after_count
                         );
                         if added == 0 {
                             warn!(
@@ -1917,74 +1910,12 @@ impl SQLParser {
             ) {
                 // Search for column name pattern that appears before a type keyword
                 let column_type_re = Regex::new(r#"\b([a-zA-Z_][a-zA-Z0-9_]*)\s+(STRUCT|ARRAY|MAP|STRING|INT|BIGINT|DOUBLE|FLOAT|BOOLEAN|BINARY)"#).unwrap();
-                if let Some(cap) = column_type_re.captures(part) {
-                    if let Some(matched) = cap.get(1) {
-                        let candidate = matched.as_str();
-                        let upper_candidate = candidate.to_uppercase();
-                        // Verify it's not a common word
-                        if !matches!(
-                            upper_candidate.as_str(),
-                            "BY" | "EITHER"
-                                | "OR"
-                                | "AND"
-                                | "THE"
-                                | "WILL"
-                                | "TO"
-                                | "NO"
-                                | "NOT"
-                                | "IS"
-                                | "AS"
-                                | "ON"
-                                | "IN"
-                                | "AT"
-                                | "FOR"
-                                | "OF"
-                                | "FROM"
-                                | "WITH"
-                                | "THAT"
-                                | "THIS"
-                                | "WHEN"
-                                | "WHICH"
-                                | "WHERE"
-                                | "THEN"
-                                | "ELSE"
-                                | "IF"
-                                | "WHILE"
-                                | "DO"
-                                | "BE"
-                                | "HAVE"
-                                | "HAS"
-                                | "HAD"
-                                | "WAS"
-                                | "WERE"
-                                | "ARE"
-                                | "CAN"
-                                | "MAY"
-                                | "MUST"
-                                | "SHOULD"
-                                | "WOULD"
-                                | "COULD"
-                                | "INDICATING"
-                                | "DISMISSING"
-                                | "BUT"
-                        ) {
-                            debug!("Found better column name '{}' after filtering suspicious word '{}'", candidate, found_name);
-                            name = Some(candidate.to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Fallback: try to find any valid column name in the part
-        if name.is_none() {
-            // Search for patterns like "columnName STRUCT" or "columnName ARRAY"
-            let column_type_re = Regex::new(r#"\b([a-zA-Z_][a-zA-Z0-9_]*)\s+(STRUCT|ARRAY|MAP|STRING|INT|BIGINT|DOUBLE|FLOAT|BOOLEAN|BINARY)"#).unwrap();
-            if let Some(cap) = column_type_re.captures(part) {
-                if let Some(matched) = cap.get(1) {
+                if let Some(cap) = column_type_re.captures(part)
+                    && let Some(matched) = cap.get(1)
+                {
                     let candidate = matched.as_str();
-                    // Verify it's not a common word
                     let upper_candidate = candidate.to_uppercase();
+                    // Verify it's not a common word
                     if !matches!(
                         upper_candidate.as_str(),
                         "BY" | "EITHER"
@@ -2031,8 +1962,73 @@ impl SQLParser {
                             | "DISMISSING"
                             | "BUT"
                     ) {
+                        debug!(
+                            "Found better column name '{}' after filtering suspicious word '{}'",
+                            candidate, found_name
+                        );
                         name = Some(candidate.to_string());
                     }
+                }
+            }
+        }
+
+        // Fallback: try to find any valid column name in the part
+        if name.is_none() {
+            // Search for patterns like "columnName STRUCT" or "columnName ARRAY"
+            let column_type_re = Regex::new(r#"\b([a-zA-Z_][a-zA-Z0-9_]*)\s+(STRUCT|ARRAY|MAP|STRING|INT|BIGINT|DOUBLE|FLOAT|BOOLEAN|BINARY)"#).unwrap();
+            if let Some(cap) = column_type_re.captures(part)
+                && let Some(matched) = cap.get(1)
+            {
+                let candidate = matched.as_str();
+                // Verify it's not a common word
+                let upper_candidate = candidate.to_uppercase();
+                if !matches!(
+                    upper_candidate.as_str(),
+                    "BY" | "EITHER"
+                        | "OR"
+                        | "AND"
+                        | "THE"
+                        | "WILL"
+                        | "TO"
+                        | "NO"
+                        | "NOT"
+                        | "IS"
+                        | "AS"
+                        | "ON"
+                        | "IN"
+                        | "AT"
+                        | "FOR"
+                        | "OF"
+                        | "FROM"
+                        | "WITH"
+                        | "THAT"
+                        | "THIS"
+                        | "WHEN"
+                        | "WHICH"
+                        | "WHERE"
+                        | "THEN"
+                        | "ELSE"
+                        | "IF"
+                        | "WHILE"
+                        | "DO"
+                        | "BE"
+                        | "HAVE"
+                        | "HAS"
+                        | "HAD"
+                        | "WAS"
+                        | "WERE"
+                        | "ARE"
+                        | "CAN"
+                        | "MAY"
+                        | "MUST"
+                        | "SHOULD"
+                        | "WOULD"
+                        | "COULD"
+                        | "INDICATING"
+                        | "DISMISSING"
+                        | "BUT"
+                ) {
+                    name = Some(candidate.to_string());
                 }
             }
         }
@@ -2382,9 +2378,7 @@ impl SQLParser {
                         let added = after_count - before_count;
                         info!(
                             "Parsed STRUCT<...> for column '{}': added {} nested columns (total: {})",
-                            name,
-                            added,
-                            after_count
+                            name, added, after_count
                         );
                         if added == 0 {
                             warn!(
@@ -2442,9 +2436,7 @@ impl SQLParser {
                         let added = after_count - before_count;
                         info!(
                             "Parsed ARRAY<STRUCT<...>> for column '{}': added {} nested columns (total: {})",
-                            name,
-                            added,
-                            after_count
+                            name, added, after_count
                         );
                         if added == 0 {
                             warn!(
@@ -2632,10 +2624,10 @@ impl SQLParser {
 
         // Handle last field
         let field = current_field.trim().to_string();
-        if !field.is_empty() {
-            if let Some((field_name, field_type)) = self.parse_field_definition_for_sql(&field)? {
-                fields.push((field_name, field_type));
-            }
+        if !field.is_empty()
+            && let Some((field_name, field_type)) = self.parse_field_definition_for_sql(&field)?
+        {
+            fields.push((field_name, field_type));
         }
 
         Ok(fields)

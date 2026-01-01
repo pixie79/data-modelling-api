@@ -1,7 +1,7 @@
 //! AVRO schema exporter for generating AVRO schemas from data models.
 
 use crate::models::{DataModel, Table};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Exporter for AVRO schema format.
 pub struct AvroExporter;

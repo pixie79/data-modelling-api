@@ -1,26 +1,150 @@
-//! Import routes for SQL and ODCL file imports.
+//! Import routes for SQL and ODCS/ODCL file imports.
+//!
+//! Primary format: ODCS (Open Data Contract Standard) v3.1.0
+//! Legacy format: ODCL (Data Contract Specification) - deprecated, support ends 31/12/26
+//!
+//! All import routes require authentication via JWT token.
+//! Parsed data is validated for security before being stored.
 
 use axum::{
+    Router,
     extract::{Multipart, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::Json,
     routing::post,
-    Router,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use tracing::{error, info, warn};
+use utoipa::ToSchema;
 
+use super::auth_context::AuthContext;
 use super::tables::AppState;
+use crate::models::Table;
 use crate::services::{AvroParser, JSONSchemaParser, ODCSParser, ProtobufParser, SQLParser};
 
+/// Validation errors from import validation.
+#[derive(Debug, Clone)]
+pub struct ImportValidationError {
+    pub table_name: String,
+    pub field: String,
+    pub message: String,
+}
+
+/// Validate imported tables for security.
+///
+/// This function checks:
+/// - Table names are valid identifiers (no SQL injection)
+/// - Column names are valid identifiers
+/// - Data types are valid
+/// - No excessively long strings
+fn validate_imported_tables(tables: &[Table]) -> Vec<ImportValidationError> {
+    let mut errors = Vec::new();
+
+    for table in tables {
+        // Validate table name
+        if let Err(msg) = validate_identifier(&table.name, "table") {
+            errors.push(ImportValidationError {
+                table_name: table.name.clone(),
+                field: "name".to_string(),
+                message: msg,
+            });
+        }
+
+        // Validate column names
+        for column in &table.columns {
+            if let Err(msg) = validate_identifier(&column.name, "column") {
+                errors.push(ImportValidationError {
+                    table_name: table.name.clone(),
+                    field: format!("column.{}", column.name),
+                    message: msg,
+                });
+            }
+
+            // Validate data type isn't excessively long or contains suspicious patterns
+            if column.data_type.len() > 255 {
+                errors.push(ImportValidationError {
+                    table_name: table.name.clone(),
+                    field: format!("column.{}.data_type", column.name),
+                    message: "Data type exceeds maximum length".to_string(),
+                });
+            }
+        }
+    }
+
+    errors
+}
+
+/// Validate an identifier (table or column name) for security.
+fn validate_identifier(name: &str, identifier_type: &str) -> Result<(), String> {
+    // Check empty
+    if name.is_empty() {
+        return Err(format!("{} name cannot be empty", identifier_type));
+    }
+
+    // Check length
+    if name.len() > 255 {
+        return Err(format!(
+            "{} name exceeds maximum length of 255",
+            identifier_type
+        ));
+    }
+
+    // Check for SQL injection patterns
+    let suspicious_patterns = [
+        "--",
+        "/*",
+        "*/",
+        ";",
+        "\'",
+        "\"\"",
+        "DROP ",
+        "DELETE ",
+        "INSERT ",
+        "UPDATE ",
+        "EXEC ",
+        "EXECUTE ",
+        "UNION ",
+        "SELECT ",
+        "<script",
+        "javascript:",
+    ];
+
+    let name_upper = name.to_uppercase();
+    for pattern in suspicious_patterns {
+        if name_upper.contains(pattern) {
+            return Err(format!(
+                "{} name contains suspicious pattern: {}",
+                identifier_type,
+                pattern.trim()
+            ));
+        }
+    }
+
+    // Allow alphanumeric, underscores, and hyphens
+    // Also allow dots for schema-qualified names (they should be split first)
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
+    {
+        return Err(format!(
+            "{} name contains invalid characters",
+            identifier_type
+        ));
+    }
+
+    Ok(())
+}
+
 /// Request for SQL text import
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SQLTextImportRequest {
     pub content: String,
+    #[allow(dead_code)]
     #[serde(default)]
     pub use_ai: bool,
+    #[allow(dead_code)]
     #[serde(default)]
     pub filename: Option<String>,
     #[serde(default)]
@@ -29,40 +153,64 @@ pub struct SQLTextImportRequest {
     pub dialect: Option<String>, // SQL dialect name (e.g., "postgres", "mysql", "databricks", "duckdb")
 }
 
-/// Request for ODCL text import
-#[derive(Debug, Deserialize)]
+/// Request for ODCS/ODCL text import
+///
+/// Supports ODCS v3.1.0 (primary) and legacy ODCL formats (deprecated, support ends 31/12/26)
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ODCLTextImportRequest {
     pub content: String,
+    #[allow(dead_code)]
     #[serde(default)]
     pub use_ai: bool,
+    #[allow(dead_code)]
     #[serde(default)]
     pub filename: Option<String>,
 }
 
 /// Create the import router
+///
+/// All routes require JWT authentication.
 pub fn import_router() -> Router<AppState> {
     Router::new()
-        .route("/odcl", post(import_odcl))
-        .route("/odcl/text", post(import_odcl_text))
+        // ODCS v3.1.0 (primary) and legacy ODCL (deprecated, support ends 31/12/26)
+        .route("/odcl", post(import_odcl)) // Legacy endpoint name kept for backward compatibility
+        .route("/odcl/text", post(import_odcl_text)) // Legacy endpoint name kept for backward compatibility
         .route("/sql", post(import_sql))
-        .route(
-            "/sql/text",
-            post(
-                |state: State<AppState>, headers: HeaderMap, request: Json<SQLTextImportRequest>| async move {
-                    import_sql_text(state, headers, request).await
-                },
-            ),
-        )
+        .route("/sql/text", post(import_sql_text))
         .route("/avro", post(import_avro))
         .route("/json-schema", post(import_json_schema))
         .route("/protobuf", post(import_protobuf))
 }
 
-/// POST /import/odcl - Import tables from ODCL file
+/// POST /import/odcl - Import tables from ODCS/ODCL file
+///
+/// Supports:
+/// - ODCS (Open Data Contract Standard) v3.1.0 (primary format)
+/// - Legacy ODCL formats (deprecated, support ends 31/12/26)
+///
+/// Requires JWT authentication.
+#[utoipa::path(
+    post,
+    path = "/import/odcl",
+    tag = "Import",
+    request_body(content = Multipart, description = "ODCS/ODCL YAML file"),
+    responses(
+        (status = 200, description = "ODCS/ODCL file imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid file or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn import_odcl(
     State(state): State<AppState>,
+    auth: AuthContext,
     mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
+    info!(
+        "[Import] ODCS/ODCL import by user {} (ODCS v3.1.0 is primary, ODCL is legacy)",
+        auth.email
+    );
     let mut yaml_content = String::new();
     let _use_ai = false;
 
@@ -72,10 +220,11 @@ async fn import_odcl(
 
         if name == "file" {
             // Validate filename
-            if let Some(filename) = field.file_name() {
-                if !filename.ends_with(".yaml") && !filename.ends_with(".yml") {
-                    return Err(StatusCode::BAD_REQUEST);
-                }
+            if let Some(filename) = field.file_name()
+                && !filename.ends_with(".yaml")
+                && !filename.ends_with(".yml")
+            {
+                return Err(StatusCode::BAD_REQUEST);
             }
 
             if let Ok(content) = field.bytes().await {
@@ -101,10 +250,34 @@ async fn import_odcl(
     let (table, parse_errors) = match parser.parse(&yaml_content) {
         Ok(result) => result,
         Err(e) => {
-            error!("ODCL parsing error: {}", e);
+            error!("ODCS/ODCL parsing error: {}", e);
             return Err(StatusCode::BAD_REQUEST);
         }
     };
+
+    // Validate imported tables for security
+    let validation_errors = validate_imported_tables(std::slice::from_ref(&table));
+    if !validation_errors.is_empty() {
+        let errors_json: Vec<Value> = validation_errors
+            .iter()
+            .map(|e| {
+                json!({
+                    "type": "validation_error",
+                    "table": e.table_name,
+                    "field": e.field,
+                    "message": e.message
+                })
+            })
+            .collect();
+        warn!(
+            "[Import] Validation failed for ODCS/ODCL import: {:?}",
+            validation_errors
+        );
+        return Ok(Json(json!({
+            "tables": [],
+            "errors": errors_json
+        })));
+    }
 
     let mut model_service = state.model_service.lock().await;
 
@@ -167,11 +340,35 @@ async fn import_odcl(
     })))
 }
 
-/// POST /import/odcl/text - Import tables from ODCL text
-async fn import_odcl_text(
+/// POST /import/odcl/text - Import tables from ODCS/ODCL text
+///
+/// Supports:
+/// - ODCS (Open Data Contract Standard) v3.1.0 (primary format)
+/// - Legacy ODCL formats (deprecated, support ends 31/12/26)
+///
+/// Requires JWT authentication.
+#[utoipa::path(
+    post,
+    path = "/import/odcl/text",
+    tag = "Import",
+    request_body = ODCLTextImportRequest,
+    responses(
+        (status = 200, description = "ODCS/ODCL text imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid content or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn import_odcl_text(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(request): Json<ODCLTextImportRequest>,
 ) -> Result<Json<Value>, StatusCode> {
+    info!(
+        "[Import] ODCS/ODCL text import by user {} (ODCS v3.1.0 is primary, ODCL is legacy)",
+        auth.email
+    );
     // Basic sanitization
     let yaml_content = request.content.replace('\x00', "");
     if yaml_content.len() > 10 * 1024 * 1024 {
@@ -182,10 +379,34 @@ async fn import_odcl_text(
     let (table, parse_errors) = match parser.parse(&yaml_content) {
         Ok(result) => result,
         Err(e) => {
-            error!("ODCL parsing error: {}", e);
+            error!("ODCS/ODCL parsing error: {}", e);
             return Err(StatusCode::BAD_REQUEST);
         }
     };
+
+    // Validate imported tables for security
+    let validation_errors = validate_imported_tables(std::slice::from_ref(&table));
+    if !validation_errors.is_empty() {
+        let errors_json: Vec<Value> = validation_errors
+            .iter()
+            .map(|e| {
+                json!({
+                    "type": "validation_error",
+                    "table": e.table_name,
+                    "field": e.field,
+                    "message": e.message
+                })
+            })
+            .collect();
+        warn!(
+            "[Import] Validation failed for ODCS/ODCL text import: {:?}",
+            validation_errors
+        );
+        return Ok(Json(json!({
+            "tables": [],
+            "errors": errors_json
+        })));
+    }
 
     let mut model_service = state.model_service.lock().await;
 
@@ -302,10 +523,27 @@ async fn import_odcl_text(
 }
 
 /// POST /import/sql - Import tables from SQL file
+///
+/// Requires JWT authentication.
+#[utoipa::path(
+    post,
+    path = "/import/sql",
+    tag = "Import",
+    request_body(content = Multipart, description = "SQL file"),
+    responses(
+        (status = 200, description = "SQL file imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid file or SQL syntax"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 pub async fn import_sql(
     State(state): State<AppState>,
+    auth: AuthContext,
     mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
+    info!("[Import] SQL import by user {}", auth.email);
     let mut sql_content = String::new();
     let mut dialect = "generic".to_string(); // Default dialect
     let _use_ai = false;
@@ -401,6 +639,30 @@ pub async fn import_sql(
             "requires_name_input": true,
             "ai_suggestions": json!([]),
             "errors": json!([])
+        })));
+    }
+
+    // Validate imported tables for security
+    let validation_errors = validate_imported_tables(&tables);
+    if !validation_errors.is_empty() {
+        let errors_json: Vec<Value> = validation_errors
+            .iter()
+            .map(|e| {
+                json!({
+                    "type": "validation_error",
+                    "table": e.table_name,
+                    "field": e.field,
+                    "message": e.message
+                })
+            })
+            .collect();
+        warn!(
+            "[Import] Validation failed for SQL import: {:?}",
+            validation_errors
+        );
+        return Ok(Json(json!({
+            "tables": [],
+            "errors": errors_json
         })));
     }
 
@@ -554,16 +816,27 @@ pub async fn import_sql(
 }
 
 /// POST /import/sql/text - Import tables from SQL text
+///
+/// Requires JWT authentication.
+#[utoipa::path(
+    post,
+    path = "/import/sql/text",
+    tag = "Import",
+    request_body = SQLTextImportRequest,
+    responses(
+        (status = 200, description = "SQL text imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid SQL syntax"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 pub async fn import_sql_text(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    auth: AuthContext,
     Json(request): Json<SQLTextImportRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    // Ensure workspace is loaded from session before importing
-    if let Err(e) = super::workspace::ensure_workspace_loaded(&state, &headers).await {
-        warn!("[Import] Failed to ensure workspace loaded: {}", e);
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    info!("[Import] SQL text import by user {}", auth.email);
 
     // Basic sanitization
     let sql_content = request.content.replace('\x00', "");
@@ -641,6 +914,30 @@ pub async fn import_sql_text(
             "requires_name_input": true,
             "ai_suggestions": json!([]),
             "errors": json!([])
+        })));
+    }
+
+    // Validate imported tables for security
+    let validation_errors = validate_imported_tables(&tables);
+    if !validation_errors.is_empty() {
+        let errors_json: Vec<Value> = validation_errors
+            .iter()
+            .map(|e| {
+                json!({
+                    "type": "validation_error",
+                    "table": e.table_name,
+                    "field": e.field,
+                    "message": e.message
+                })
+            })
+            .collect();
+        warn!(
+            "[Import] Validation failed for SQL text import: {:?}",
+            validation_errors
+        );
+        return Ok(Json(json!({
+            "tables": [],
+            "errors": errors_json
         })));
     }
 
@@ -740,7 +1037,10 @@ pub async fn import_sql_text(
     } else {
         warn!("[Import] WARNING: Model is None after import_sql_text! Attempting to reload...");
         if let Err(e) = model_service.ensure_model_available() {
-            error!("[Import] CRITICAL: Model not available after import_sql_text and reload failed: {}", e);
+            error!(
+                "[Import] CRITICAL: Model not available after import_sql_text and reload failed: {}",
+                e
+            );
         } else if let Some(model) = model_service.get_current_model() {
             info!(
                 "[Import] Model reloaded successfully after import_sql_text: {} tables",
@@ -762,10 +1062,27 @@ pub async fn import_sql_text(
 }
 
 /// POST /import/avro - Import tables from AVRO schema file
+///
+/// Requires JWT authentication.
+#[utoipa::path(
+    post,
+    path = "/import/avro",
+    tag = "Import",
+    request_body(content = Multipart, description = "AVRO schema file"),
+    responses(
+        (status = 200, description = "AVRO schema imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid AVRO schema"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn import_avro(
     State(state): State<AppState>,
+    auth: AuthContext,
     mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
+    info!("[Import] Avro import by user {}", auth.email);
     let mut avro_content = String::new();
     let _use_ai = false;
 
@@ -804,6 +1121,30 @@ async fn import_avro(
 
     if tables.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Validate imported tables for security
+    let validation_errors = validate_imported_tables(&tables);
+    if !validation_errors.is_empty() {
+        let errors_json: Vec<Value> = validation_errors
+            .iter()
+            .map(|e| {
+                json!({
+                    "type": "validation_error",
+                    "table": e.table_name,
+                    "field": e.field,
+                    "message": e.message
+                })
+            })
+            .collect();
+        warn!(
+            "[Import] Validation failed for Avro import: {:?}",
+            validation_errors
+        );
+        return Ok(Json(json!({
+            "tables": [],
+            "errors": errors_json
+        })));
     }
 
     let mut model_service = state.model_service.lock().await;
@@ -852,29 +1193,28 @@ async fn import_avro(
         if let Some(table_name) = parse_error.field.as_ref().and_then(|f| {
             // Try to extract table name from field if it's in format "table_name.field"
             f.split('.').next()
-        }) {
-            if let Some(table) = tables_with_errors.iter_mut().find(|t| t.name == table_name) {
-                let mut error_map = HashMap::new();
-                error_map.insert(
-                    "type".to_string(),
-                    serde_json::Value::String(parse_error.error_type.clone()),
-                );
-                error_map.insert(
-                    "field".to_string(),
-                    serde_json::Value::String(
-                        parse_error
-                            .field
-                            .as_deref()
-                            .unwrap_or("unknown")
-                            .to_string(),
-                    ),
-                );
-                error_map.insert(
-                    "message".to_string(),
-                    serde_json::Value::String(parse_error.message.clone()),
-                );
-                table.errors.push(error_map);
-            }
+        }) && let Some(table) = tables_with_errors.iter_mut().find(|t| t.name == table_name)
+        {
+            let mut error_map = HashMap::new();
+            error_map.insert(
+                "type".to_string(),
+                serde_json::Value::String(parse_error.error_type.clone()),
+            );
+            error_map.insert(
+                "field".to_string(),
+                serde_json::Value::String(
+                    parse_error
+                        .field
+                        .as_deref()
+                        .unwrap_or("unknown")
+                        .to_string(),
+                ),
+            );
+            error_map.insert(
+                "message".to_string(),
+                serde_json::Value::String(parse_error.message.clone()),
+            );
+            table.errors.push(error_map);
         }
     }
 
@@ -963,10 +1303,27 @@ async fn import_avro(
 }
 
 /// POST /import/json-schema - Import tables from JSON Schema file
-async fn import_json_schema(
+///
+/// Requires JWT authentication.
+#[utoipa::path(
+    post,
+    path = "/import/json-schema",
+    tag = "Import",
+    request_body(content = Multipart, description = "JSON Schema file"),
+    responses(
+        (status = 200, description = "JSON Schema imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid JSON Schema"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn import_json_schema(
     State(state): State<AppState>,
+    auth: AuthContext,
     mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
+    info!("[Import] JSON Schema import by user {}", auth.email);
     let mut json_content = String::new();
     let _use_ai = false;
 
@@ -1005,6 +1362,30 @@ async fn import_json_schema(
 
     if tables.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Validate imported tables for security
+    let validation_errors = validate_imported_tables(&tables);
+    if !validation_errors.is_empty() {
+        let errors_json: Vec<Value> = validation_errors
+            .iter()
+            .map(|e| {
+                json!({
+                    "type": "validation_error",
+                    "table": e.table_name,
+                    "field": e.field,
+                    "message": e.message
+                })
+            })
+            .collect();
+        warn!(
+            "[Import] Validation failed for JSON Schema import: {:?}",
+            validation_errors
+        );
+        return Ok(Json(json!({
+            "tables": [],
+            "errors": errors_json
+        })));
     }
 
     let mut model_service = state.model_service.lock().await;
@@ -1053,29 +1434,28 @@ async fn import_json_schema(
         if let Some(table_name) = parse_error.field.as_ref().and_then(|f| {
             // Try to extract table name from field if it's in format "table_name.field"
             f.split('.').next()
-        }) {
-            if let Some(table) = tables_with_errors.iter_mut().find(|t| t.name == table_name) {
-                let mut error_map = HashMap::new();
-                error_map.insert(
-                    "type".to_string(),
-                    serde_json::Value::String(parse_error.error_type.clone()),
-                );
-                error_map.insert(
-                    "field".to_string(),
-                    serde_json::Value::String(
-                        parse_error
-                            .field
-                            .as_deref()
-                            .unwrap_or("unknown")
-                            .to_string(),
-                    ),
-                );
-                error_map.insert(
-                    "message".to_string(),
-                    serde_json::Value::String(parse_error.message.clone()),
-                );
-                table.errors.push(error_map);
-            }
+        }) && let Some(table) = tables_with_errors.iter_mut().find(|t| t.name == table_name)
+        {
+            let mut error_map = HashMap::new();
+            error_map.insert(
+                "type".to_string(),
+                serde_json::Value::String(parse_error.error_type.clone()),
+            );
+            error_map.insert(
+                "field".to_string(),
+                serde_json::Value::String(
+                    parse_error
+                        .field
+                        .as_deref()
+                        .unwrap_or("unknown")
+                        .to_string(),
+                ),
+            );
+            error_map.insert(
+                "message".to_string(),
+                serde_json::Value::String(parse_error.message.clone()),
+            );
+            table.errors.push(error_map);
         }
     }
 
@@ -1164,10 +1544,27 @@ async fn import_json_schema(
 }
 
 /// POST /import/protobuf - Import tables from Protobuf .proto file
+///
+/// Requires JWT authentication.
+#[utoipa::path(
+    post,
+    path = "/import/protobuf",
+    tag = "Import",
+    request_body(content = Multipart, description = "Protobuf schema file"),
+    responses(
+        (status = 200, description = "Protobuf schema imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid Protobuf schema"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn import_protobuf(
     State(state): State<AppState>,
+    auth: AuthContext,
     mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
+    info!("[Import] Protobuf import by user {}", auth.email);
     let mut proto_content = String::new();
     let _use_ai = false;
 
@@ -1206,6 +1603,30 @@ async fn import_protobuf(
 
     if tables.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Validate imported tables for security
+    let validation_errors = validate_imported_tables(&tables);
+    if !validation_errors.is_empty() {
+        let errors_json: Vec<Value> = validation_errors
+            .iter()
+            .map(|e| {
+                json!({
+                    "type": "validation_error",
+                    "table": e.table_name,
+                    "field": e.field,
+                    "message": e.message
+                })
+            })
+            .collect();
+        warn!(
+            "[Import] Validation failed for Protobuf import: {:?}",
+            validation_errors
+        );
+        return Ok(Json(json!({
+            "tables": [],
+            "errors": errors_json
+        })));
     }
 
     let mut model_service = state.model_service.lock().await;

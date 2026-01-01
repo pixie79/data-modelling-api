@@ -11,6 +11,7 @@ pub use api::middleware;
 pub use api::models;
 pub use api::routes;
 pub use api::services;
+pub use api::storage;
 
 // DrawIO module for DrawIO XML handling
 pub mod drawio;

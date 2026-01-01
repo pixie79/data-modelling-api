@@ -1,7 +1,7 @@
 //! JSON Schema exporter for generating JSON Schema from data models.
 
 use crate::models::{DataModel, Table};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Exporter for JSON Schema format.
 pub struct JSONSchemaExporter;

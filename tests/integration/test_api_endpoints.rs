@@ -16,7 +16,7 @@ use serde_json::{json, Value};
 
 fn create_test_server() -> TestServer {
     let app_state = create_app_state();
-    let router = create_api_router().with_state(app_state);
+    let router = create_api_router(app_state);
     TestServer::new(router).unwrap()
 }
 

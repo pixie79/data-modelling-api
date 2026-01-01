@@ -91,53 +91,53 @@ impl ODCSExporter {
         );
 
         // Status - from metadata or default
-        if let Some(status) = table.odcl_metadata.get("status") {
-            if !status.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("status".to_string()),
-                    Self::json_to_yaml_value(status),
-                );
-            }
+        if let Some(status) = table.odcl_metadata.get("status")
+            && !status.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("status".to_string()),
+                Self::json_to_yaml_value(status),
+            );
         }
 
         // Domain - from metadata
-        if let Some(domain) = table.odcl_metadata.get("domain") {
-            if !domain.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("domain".to_string()),
-                    Self::json_to_yaml_value(domain),
-                );
-            }
+        if let Some(domain) = table.odcl_metadata.get("domain")
+            && !domain.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("domain".to_string()),
+                Self::json_to_yaml_value(domain),
+            );
         }
 
         // Data Product - from metadata
-        if let Some(data_product) = table.odcl_metadata.get("dataProduct") {
-            if !data_product.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("dataProduct".to_string()),
-                    Self::json_to_yaml_value(data_product),
-                );
-            }
+        if let Some(data_product) = table.odcl_metadata.get("dataProduct")
+            && !data_product.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("dataProduct".to_string()),
+                Self::json_to_yaml_value(data_product),
+            );
         }
 
         // Tenant - from metadata
-        if let Some(tenant) = table.odcl_metadata.get("tenant") {
-            if !tenant.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("tenant".to_string()),
-                    Self::json_to_yaml_value(tenant),
-                );
-            }
+        if let Some(tenant) = table.odcl_metadata.get("tenant")
+            && !tenant.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("tenant".to_string()),
+                Self::json_to_yaml_value(tenant),
+            );
         }
 
         // Description - from metadata (can be object or string)
-        if let Some(description) = table.odcl_metadata.get("description") {
-            if !description.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("description".to_string()),
-                    Self::json_to_yaml_value(description),
-                );
-            }
+        if let Some(description) = table.odcl_metadata.get("description")
+            && !description.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("description".to_string()),
+                Self::json_to_yaml_value(description),
+            );
         }
 
         // Tags
@@ -154,83 +154,83 @@ impl ODCSExporter {
         }
 
         // Team - from metadata
-        if let Some(team) = table.odcl_metadata.get("team") {
-            if !team.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("team".to_string()),
-                    Self::json_to_yaml_value(team),
-                );
-            }
+        if let Some(team) = table.odcl_metadata.get("team")
+            && !team.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("team".to_string()),
+                Self::json_to_yaml_value(team),
+            );
         }
 
         // Roles - from metadata
-        if let Some(roles) = table.odcl_metadata.get("roles") {
-            if !roles.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("roles".to_string()),
-                    Self::json_to_yaml_value(roles),
-                );
-            }
+        if let Some(roles) = table.odcl_metadata.get("roles")
+            && !roles.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("roles".to_string()),
+                Self::json_to_yaml_value(roles),
+            );
         }
 
         // Pricing - from metadata (ODCS uses "price")
-        if let Some(pricing) = table.odcl_metadata.get("pricing") {
-            if !pricing.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("price".to_string()),
-                    Self::json_to_yaml_value(pricing),
-                );
-            }
+        if let Some(pricing) = table.odcl_metadata.get("pricing")
+            && !pricing.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("price".to_string()),
+                Self::json_to_yaml_value(pricing),
+            );
         }
 
         // Terms - from metadata
-        if let Some(terms) = table.odcl_metadata.get("terms") {
-            if !terms.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("terms".to_string()),
-                    Self::json_to_yaml_value(terms),
-                );
-            }
+        if let Some(terms) = table.odcl_metadata.get("terms")
+            && !terms.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("terms".to_string()),
+                Self::json_to_yaml_value(terms),
+            );
         }
 
         // Servers - from metadata
-        if let Some(servers) = table.odcl_metadata.get("servers") {
-            if !servers.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("servers".to_string()),
-                    Self::json_to_yaml_value(servers),
-                );
-            }
+        if let Some(servers) = table.odcl_metadata.get("servers")
+            && !servers.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("servers".to_string()),
+                Self::json_to_yaml_value(servers),
+            );
         }
 
         // Service Levels - from metadata
-        if let Some(servicelevels) = table.odcl_metadata.get("servicelevels") {
-            if !servicelevels.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("servicelevels".to_string()),
-                    Self::json_to_yaml_value(servicelevels),
-                );
-            }
+        if let Some(servicelevels) = table.odcl_metadata.get("servicelevels")
+            && !servicelevels.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("servicelevels".to_string()),
+                Self::json_to_yaml_value(servicelevels),
+            );
         }
 
         // Links - from metadata
-        if let Some(links) = table.odcl_metadata.get("links") {
-            if !links.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("links".to_string()),
-                    Self::json_to_yaml_value(links),
-                );
-            }
+        if let Some(links) = table.odcl_metadata.get("links")
+            && !links.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("links".to_string()),
+                Self::json_to_yaml_value(links),
+            );
         }
 
         // Infrastructure - from metadata
-        if let Some(infrastructure) = table.odcl_metadata.get("infrastructure") {
-            if !infrastructure.is_null() {
-                yaml.insert(
-                    serde_yaml::Value::String("infrastructure".to_string()),
-                    Self::json_to_yaml_value(infrastructure),
-                );
-            }
+        if let Some(infrastructure) = table.odcl_metadata.get("infrastructure")
+            && !infrastructure.is_null()
+        {
+            yaml.insert(
+                serde_yaml::Value::String("infrastructure".to_string()),
+                Self::json_to_yaml_value(infrastructure),
+            );
         }
 
         // Schema array (ODCS v3.1.0 uses array of SchemaObject)
@@ -244,7 +244,7 @@ impl ODCSExporter {
 
         // Build properties from columns
         let mut properties = serde_yaml::Mapping::new();
-        
+
         // Helper function to build nested properties structure
         fn build_nested_properties(
             parent_name: &str,
@@ -262,19 +262,25 @@ impl ODCSExporter {
             }
 
             let mut nested_props = serde_yaml::Mapping::new();
-            
+
             // Group nested columns by their immediate child name (first level only)
             let mut child_map: std::collections::HashMap<String, Vec<&crate::models::Column>> =
                 std::collections::HashMap::new();
-            
+
             for nested_col in &nested_columns {
                 let relative_name = nested_col.name.strip_prefix(&parent_prefix).unwrap();
                 if let Some(dot_pos) = relative_name.find('.') {
                     let child_name = &relative_name[..dot_pos];
-                    child_map.entry(child_name.to_string()).or_insert_with(Vec::new).push(nested_col);
+                    child_map
+                        .entry(child_name.to_string())
+                        .or_default()
+                        .push(nested_col);
                 } else {
                     // Direct child - add to map
-                    child_map.entry(relative_name.to_string()).or_insert_with(Vec::new).push(nested_col);
+                    child_map
+                        .entry(relative_name.to_string())
+                        .or_default()
+                        .push(nested_col);
                 }
             }
 
@@ -288,7 +294,7 @@ impl ODCSExporter {
 
                 if let Some(child_col) = direct_child {
                     let mut child_prop = serde_yaml::Mapping::new();
-                    
+
                     // Check if this child has nested children
                     let child_has_nested = child_cols.iter().any(|col| {
                         let rel = col.name.strip_prefix(&parent_prefix).unwrap();
@@ -297,14 +303,16 @@ impl ODCSExporter {
 
                     // Handle ARRAY<OBJECT> or ARRAY<STRUCT> types
                     let data_type_upper = child_col.data_type.to_uppercase();
-                    let is_array_object = data_type_upper.starts_with("ARRAY<") 
-                        && (data_type_upper.contains("OBJECT") || data_type_upper.contains("STRUCT"));
-                    let is_struct_or_object = data_type_upper == "STRUCT" 
-                        || data_type_upper == "OBJECT" 
+                    let is_array_object = data_type_upper.starts_with("ARRAY<")
+                        && (data_type_upper.contains("OBJECT")
+                            || data_type_upper.contains("STRUCT"));
+                    let is_struct_or_object = data_type_upper == "STRUCT"
+                        || data_type_upper == "OBJECT"
                         || data_type_upper.starts_with("STRUCT<");
 
                     // Try to build nested properties first (regardless of type)
-                    let nested_props_map = build_nested_properties(&child_col.name, all_columns, json_to_yaml_fn);
+                    let nested_props_map =
+                        build_nested_properties(&child_col.name, all_columns, json_to_yaml_fn);
 
                     if is_array_object && (child_has_nested || nested_props_map.is_some()) {
                         // ARRAY<OBJECT> with nested fields
@@ -312,13 +320,13 @@ impl ODCSExporter {
                             serde_yaml::Value::String("type".to_string()),
                             serde_yaml::Value::String("array".to_string()),
                         );
-                        
+
                         let mut items = serde_yaml::Mapping::new();
                         items.insert(
                             serde_yaml::Value::String("type".to_string()),
                             serde_yaml::Value::String("object".to_string()),
                         );
-                        
+
                         // Add nested properties if they exist
                         if let Some(nested_props) = nested_props_map {
                             items.insert(
@@ -326,18 +334,19 @@ impl ODCSExporter {
                                 serde_yaml::Value::Mapping(nested_props),
                             );
                         }
-                        
+
                         child_prop.insert(
                             serde_yaml::Value::String("items".to_string()),
                             serde_yaml::Value::Mapping(items),
                         );
-                    } else if is_struct_or_object || child_has_nested || nested_props_map.is_some() {
+                    } else if is_struct_or_object || child_has_nested || nested_props_map.is_some()
+                    {
                         // OBJECT/STRUCT with nested properties, or any column with nested children
                         child_prop.insert(
                             serde_yaml::Value::String("type".to_string()),
                             serde_yaml::Value::String("object".to_string()),
                         );
-                        
+
                         // Add nested properties if they exist
                         if let Some(nested_props) = nested_props_map {
                             child_prop.insert(
@@ -453,7 +462,7 @@ impl ODCSExporter {
             }
 
             let mut prop = serde_yaml::Mapping::new();
-            
+
             // Check if this column has nested columns
             let has_nested = table.columns.iter().any(|col| {
                 col.name.starts_with(&format!("{}.", column.name)) && col.name != column.name
@@ -461,30 +470,34 @@ impl ODCSExporter {
 
             // Determine the type - handle ARRAY<OBJECT>, STRUCT, OBJECT, etc.
             let data_type_upper = column.data_type.to_uppercase();
-            let is_array_object = data_type_upper.starts_with("ARRAY<") 
+            let is_array_object = data_type_upper.starts_with("ARRAY<")
                 && (data_type_upper.contains("OBJECT") || data_type_upper.contains("STRUCT"));
-            let is_struct_or_object = data_type_upper == "STRUCT" 
-                || data_type_upper == "OBJECT" 
+            let is_struct_or_object = data_type_upper == "STRUCT"
+                || data_type_upper == "OBJECT"
                 || data_type_upper.starts_with("STRUCT<");
 
             // Always check for nested properties if nested columns exist
             if has_nested {
                 // Try to build nested properties first
-                let nested_props = build_nested_properties(&column.name, &table.columns, &Self::json_to_yaml_value);
-                
+                let nested_props = build_nested_properties(
+                    &column.name,
+                    &table.columns,
+                    &Self::json_to_yaml_value,
+                );
+
                 if is_array_object {
                     // ARRAY<OBJECT> with nested fields
                     prop.insert(
                         serde_yaml::Value::String("type".to_string()),
                         serde_yaml::Value::String("array".to_string()),
                     );
-                    
+
                     let mut items = serde_yaml::Mapping::new();
                     items.insert(
                         serde_yaml::Value::String("type".to_string()),
                         serde_yaml::Value::String("object".to_string()),
                     );
-                    
+
                     // Add nested properties if they exist
                     if let Some(nested_props_map) = nested_props {
                         items.insert(
@@ -492,7 +505,7 @@ impl ODCSExporter {
                             serde_yaml::Value::Mapping(nested_props_map),
                         );
                     }
-                    
+
                     prop.insert(
                         serde_yaml::Value::String("items".to_string()),
                         serde_yaml::Value::Mapping(items),
@@ -503,7 +516,7 @@ impl ODCSExporter {
                         serde_yaml::Value::String("type".to_string()),
                         serde_yaml::Value::String("object".to_string()),
                     );
-                    
+
                     // Add nested properties if they exist
                     if let Some(nested_props_map) = nested_props {
                         prop.insert(

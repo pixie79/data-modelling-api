@@ -20,7 +20,7 @@ use serde_json::{json, Value};
 #[ignore] // Ignore until API binary can be tested
 async fn test_health_check_contract() {
     // TODO: Implement health check contract test
-    // Expected: GET /health returns {"status": "ok", "service": "modelling-api", "version": "0.1.0"}
+    // Expected: GET /health returns {"status": "ok", "service": "data-modelling-api", "version": "1.0.0"}
     // Status: 200 OK
     assert!(true); // Placeholder
 }

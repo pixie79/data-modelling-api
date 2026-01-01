@@ -1,15 +1,16 @@
 //! DrawIO export routes.
 
 use axum::{
+    Router,
     body::Body,
     extract::{Multipart, Query, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode, header},
     response::{Json, Response},
     routing::get,
-    Router,
 };
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use utoipa::ToSchema;
 
 use super::tables::AppState;
 use crate::models::enums::ModelingLevel;
@@ -22,12 +23,23 @@ pub fn drawio_router() -> Router<AppState> {
 }
 
 /// Query parameters for DrawIO export
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 struct DrawIOExportQuery {
     modeling_level: Option<String>,
 }
 
 /// GET /export/drawio - Export model to DrawIO XML format
+#[utoipa::path(
+    get,
+    path = "/export/drawio",
+    tag = "Export",
+    responses(
+        (status = 200, description = "DrawIO XML exported successfully", content_type = "application/xml"),
+        (status = 404, description = "Model not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn export_drawio(
     State(state): State<AppState>,
     Query(params): Query<DrawIOExportQuery>,
@@ -40,14 +52,16 @@ async fn export_drawio(
     };
 
     // Parse modeling level from query parameter
-    let modeling_level = params.modeling_level.as_deref().and_then(|level| {
-        match level.to_lowercase().as_str() {
-            "conceptual" => Some(ModelingLevel::Conceptual),
-            "logical" => Some(ModelingLevel::Logical),
-            "physical" => Some(ModelingLevel::Physical),
-            _ => None,
-        }
-    });
+    let modeling_level =
+        params
+            .modeling_level
+            .as_deref()
+            .and_then(|level| match level.to_lowercase().as_str() {
+                "conceptual" => Some(ModelingLevel::Conceptual),
+                "logical" => Some(ModelingLevel::Logical),
+                "physical" => Some(ModelingLevel::Physical),
+                _ => None,
+            });
 
     // Create DrawIO service
     let git_path = Path::new(&model.git_directory_path);
@@ -83,6 +97,19 @@ async fn export_drawio(
 }
 
 /// POST /import/drawio - Import DrawIO XML file to restore layout
+#[utoipa::path(
+    post,
+    path = "/export/drawio",
+    tag = "Import",
+    request_body(content = Multipart, description = "DrawIO XML file"),
+    responses(
+        (status = 200, description = "DrawIO XML imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid XML or missing file"),
+        (status = 404, description = "Model not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn import_drawio(
     State(state): State<AppState>,
     mut multipart: Multipart,

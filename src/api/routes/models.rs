@@ -1,15 +1,16 @@
 //! Model export routes.
 
 use axum::{
+    Router,
     body::Body,
     extract::{Path, Query, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode, header},
     response::Response,
     routing::get,
-    Router,
 };
 use serde::Deserialize;
 use serde_json::json;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::tables::AppState;
@@ -17,7 +18,7 @@ use crate::services::drawio_service::DrawIOService;
 use crate::services::export_service::ExportService;
 use std::path::Path as StdPath;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct ExportQuery {
     table_ids: Option<Vec<String>>,
     dialect: Option<String>,     // For SQL export
@@ -33,6 +34,21 @@ pub fn models_router() -> Router<AppState> {
 }
 
 /// GET /export/:format - Export model to specified format
+#[utoipa::path(
+    get,
+    path = "/models/export/{format}",
+    tag = "Export",
+    params(
+        ("format" = String, Path, description = "Export format: json_schema, avro, protobuf, sql, odcl, png")
+    ),
+    responses(
+        (status = 200, description = "Model exported successfully", content_type = "application/octet-stream"),
+        (status = 400, description = "Bad request - invalid format"),
+        (status = 404, description = "Model not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn export_format(
     State(state): State<AppState>,
     Path(format): Path<String>,
@@ -137,6 +153,17 @@ async fn export_format(
 }
 
 /// GET /export/all - Export model to all formats as ZIP
+#[utoipa::path(
+    get,
+    path = "/models/export/all",
+    tag = "Export",
+    responses(
+        (status = 200, description = "Model exported to all formats as ZIP", content_type = "application/zip"),
+        (status = 404, description = "Model not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn export_all(
     State(state): State<AppState>,
     Query(query): Query<ExportQuery>,

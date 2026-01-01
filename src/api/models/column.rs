@@ -68,27 +68,27 @@ fn normalize_data_type(data_type: &str) -> String {
 
     // Handle STRUCT<...>, ARRAY<...>, MAP<...> preserving inner content
     if upper.starts_with("STRUCT") {
-        if let Some(start) = data_type.find('<') {
-            if let Some(end) = data_type.rfind('>') {
-                let inner = &data_type[start + 1..end];
-                return format!("STRUCT<{}>", inner);
-            }
+        if let Some(start) = data_type.find('<')
+            && let Some(end) = data_type.rfind('>')
+        {
+            let inner = &data_type[start + 1..end];
+            return format!("STRUCT<{}>", inner);
         }
         return format!("STRUCT{}", &data_type[6..]);
     } else if upper.starts_with("ARRAY") {
-        if let Some(start) = data_type.find('<') {
-            if let Some(end) = data_type.rfind('>') {
-                let inner = &data_type[start + 1..end];
-                return format!("ARRAY<{}>", inner);
-            }
+        if let Some(start) = data_type.find('<')
+            && let Some(end) = data_type.rfind('>')
+        {
+            let inner = &data_type[start + 1..end];
+            return format!("ARRAY<{}>", inner);
         }
         return format!("ARRAY{}", &data_type[5..]);
     } else if upper.starts_with("MAP") {
-        if let Some(start) = data_type.find('<') {
-            if let Some(end) = data_type.rfind('>') {
-                let inner = &data_type[start + 1..end];
-                return format!("MAP<{}>", inner);
-            }
+        if let Some(start) = data_type.find('<')
+            && let Some(end) = data_type.rfind('>')
+        {
+            let inner = &data_type[start + 1..end];
+            return format!("MAP<{}>", inner);
         }
         return format!("MAP{}", &data_type[3..]);
     }

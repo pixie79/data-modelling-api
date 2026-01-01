@@ -3,7 +3,7 @@
 use crate::models::{DataModel, Relationship, Table};
 use crate::services::odcs_parser::ODCSParser;
 use anyhow::{Context, Result};
-use git2::{Repository, RepositoryInitOptions};
+use data_modelling_sdk::git::GitService as SdkGitService;
 use serde_yaml;
 use std::collections::HashMap;
 use std::fs;
@@ -13,8 +13,8 @@ use uuid::Uuid;
 
 /// Service for Git-based model storage.
 pub struct GitService {
-    /// Git repository instance
-    repo: Option<Repository>,
+    /// SDK Git service instance
+    git_service: SdkGitService,
     /// Git directory path
     git_directory: Option<PathBuf>,
 }
@@ -23,7 +23,7 @@ impl GitService {
     /// Create a new Git service instance.
     pub fn new() -> Self {
         Self {
-            repo: None,
+            git_service: SdkGitService::new(),
             git_directory: None,
         }
     }
@@ -40,24 +40,15 @@ impl GitService {
         }
 
         // Initialize or open Git repository (but don't load model)
-        let repo = match Repository::open(git_directory_path) {
-            Ok(repo) => repo,
-            Err(_) => {
-                // Initialize new Git repository if it doesn't exist
-                let mut opts = RepositoryInitOptions::new();
-                opts.bare(false);
-                let repo = Repository::init_opts(git_directory_path, &opts).with_context(|| {
-                    format!(
-                        "Failed to initialize Git repository at {:?}",
-                        git_directory_path
-                    )
-                })?;
-                info!("Initialized new Git repository at {:?}", git_directory_path);
-                repo
-            }
-        };
+        self.git_service
+            .open_or_init(git_directory_path)
+            .with_context(|| {
+                format!(
+                    "Failed to initialize Git repository at {:?}",
+                    git_directory_path
+                )
+            })?;
 
-        self.repo = Some(repo);
         self.git_directory = Some(git_directory_path.to_path_buf());
         Ok(())
     }
@@ -66,7 +57,10 @@ impl GitService {
     ///
     /// Supports both root and subfolder paths for focus areas.
     /// Returns the model and a list of orphaned relationships (relationships referencing non-existent tables).
-    pub fn map_git_directory(&mut self, git_directory_path: &Path) -> Result<(DataModel, Vec<Relationship>)> {
+    pub fn map_git_directory(
+        &mut self,
+        git_directory_path: &Path,
+    ) -> Result<(DataModel, Vec<Relationship>)> {
         // Validate directory exists
         if !git_directory_path.exists() {
             return Err(anyhow::anyhow!(
@@ -76,24 +70,15 @@ impl GitService {
         }
 
         // Initialize or open Git repository
-        let repo = match Repository::open(git_directory_path) {
-            Ok(repo) => repo,
-            Err(_) => {
-                // Initialize new Git repository if it doesn't exist
-                let mut opts = RepositoryInitOptions::new();
-                opts.bare(false);
-                let repo = Repository::init_opts(git_directory_path, &opts).with_context(|| {
-                    format!(
-                        "Failed to initialize Git repository at {:?}",
-                        git_directory_path
-                    )
-                })?;
-                info!("Initialized new Git repository at {:?}", git_directory_path);
-                repo
-            }
-        };
+        self.git_service
+            .open_or_init(git_directory_path)
+            .with_context(|| {
+                format!(
+                    "Failed to initialize Git repository at {:?}",
+                    git_directory_path
+                )
+            })?;
 
-        self.repo = Some(repo);
         self.git_directory = Some(git_directory_path.to_path_buf());
 
         // Load existing model from YAML files
@@ -106,6 +91,7 @@ impl GitService {
     /// List subfolders in Git directory that represent focus areas.
     ///
     /// Each subfolder should contain tables/, relationships.yaml, and diagram.drawio.
+    #[allow(dead_code)]
     pub fn list_subfolders(&self) -> Result<Vec<String>> {
         let git_dir = self
             .git_directory
@@ -120,10 +106,11 @@ impl GitService {
                 if path.is_dir() {
                     // Check if it looks like a focus area (has tables/ directory)
                     let tables_dir = path.join("tables");
-                    if tables_dir.exists() && tables_dir.is_dir() {
-                        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                            subfolders.push(name.to_string());
-                        }
+                    if tables_dir.exists()
+                        && tables_dir.is_dir()
+                        && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                    {
+                        subfolders.push(name.to_string());
                     }
                 }
             }
@@ -151,57 +138,54 @@ impl GitService {
 
         // Load tables from individual YAML files
         let mut tables = Vec::new();
-        if tables_dir.exists() {
-            if let Ok(entries) = fs::read_dir(&tables_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path
-                        .extension()
-                        .and_then(|ext| ext.to_str())
-                        .map(|ext| ext == "yaml" || ext == "yml")
-                        .unwrap_or(false)
-                    {
-                        match self.load_table_from_yaml(&path) {
-                            Ok((mut table, uuid_was_generated)) => {
-                                table.yaml_file_path = Some(
-                                    path.strip_prefix(git_dir)
-                                        .unwrap_or(&path)
-                                        .to_string_lossy()
-                                        .to_string(),
-                                );
-                                
-                                // If a new UUID was generated, save it back to the YAML file
-                                if uuid_was_generated {
-                                    info!(
-                                        "[GitService] Table '{}' got a new UUID: {}, saving back to YAML file",
-                                        table.name,
-                                        table.id
-                                    );
-                                    // Save the table back to update the YAML file with the new UUID
-                                    if let Err(e) = self.save_table_to_yaml(&table) {
-                                        warn!(
-                                            "[GitService] Failed to save updated UUID for table '{}' to {:?}: {}",
-                                            table.name, path, e
-                                        );
-                                    } else {
-                                        info!(
-                                            "[GitService] Successfully updated UUID in YAML file for table '{}'",
-                                            table.name
-                                        );
-                                    }
-                                }
-                                
+        if tables_dir.exists()
+            && let Ok(entries) = fs::read_dir(&tables_dir)
+        {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext == "yaml" || ext == "yml")
+                    .unwrap_or(false)
+                {
+                    match self.load_table_from_yaml(&path) {
+                        Ok((mut table, uuid_was_generated)) => {
+                            table.yaml_file_path = Some(
+                                path.strip_prefix(git_dir)
+                                    .unwrap_or(&path)
+                                    .to_string_lossy()
+                                    .to_string(),
+                            );
+
+                            // If a new UUID was generated, save it back to the YAML file
+                            if uuid_was_generated {
                                 info!(
-                                    "[GitService] Loaded table '{}' with UUID: {} from {:?}",
-                                    table.name,
-                                    table.id,
-                                    path
+                                    "[GitService] Table '{}' got a new UUID: {}, saving back to YAML file",
+                                    table.name, table.id
                                 );
-                                tables.push(table);
+                                // Save the table back to update the YAML file with the new UUID
+                                if let Err(e) = self.save_table_to_yaml(&table) {
+                                    warn!(
+                                        "[GitService] Failed to save updated UUID for table '{}' to {:?}: {}",
+                                        table.name, path, e
+                                    );
+                                } else {
+                                    info!(
+                                        "[GitService] Successfully updated UUID in YAML file for table '{}'",
+                                        table.name
+                                    );
+                                }
                             }
-                            Err(e) => {
-                                warn!("Failed to load table from {:?}: {}", path, e);
-                            }
+
+                            info!(
+                                "[GitService] Loaded table '{}' with UUID: {} from {:?}",
+                                table.name, table.id, path
+                            );
+                            tables.push(table);
+                        }
+                        Err(e) => {
+                            warn!("Failed to load table from {:?}: {}", path, e);
                         }
                     }
                 }
@@ -210,58 +194,70 @@ impl GitService {
 
         // Build set of table IDs for validation
         let table_ids: std::collections::HashSet<Uuid> = tables.iter().map(|t| t.id).collect();
-        
+
         info!(
             "[GitService] Loaded {} tables with IDs: {:?}",
             table_ids.len(),
-            table_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>()
+            table_ids
+                .iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
         );
 
         // Load relationships from control file
         let mut all_relationships = Vec::new();
-        let mut relationship_table_names: HashMap<Uuid, (Option<String>, Option<String>)> = HashMap::new();
-        
+        let mut relationship_table_names: HashMap<Uuid, (Option<String>, Option<String>)> =
+            HashMap::new();
+
         if control_file.exists() {
-            info!("[GitService] Reading relationships file: {:?}", control_file);
-            
+            info!(
+                "[GitService] Reading relationships file: {:?}",
+                control_file
+            );
+
             // Read YAML file to extract both relationships and table names
-            if let Ok(yaml_content) = fs::read_to_string(&control_file) {
-                if let Ok(data) = serde_yaml::from_str::<serde_yaml::Value>(&yaml_content) {
-                    // Extract relationships array
-                    let rels_array = data.get("relationships").and_then(|v| v.as_sequence())
-                        .or_else(|| data.as_sequence());
-                    
-                    if let Some(rels_array) = rels_array {
-                        for rel_data in rels_array {
-                            // Extract table names before parsing (for UUID fixing)
-                            let rel_id = rel_data.get("id")
+            if let Ok(yaml_content) = fs::read_to_string(&control_file)
+                && let Ok(data) = serde_yaml::from_str::<serde_yaml::Value>(&yaml_content)
+            {
+                // Extract relationships array
+                let rels_array = data
+                    .get("relationships")
+                    .and_then(|v| v.as_sequence())
+                    .or_else(|| data.as_sequence());
+
+                if let Some(rels_array) = rels_array {
+                    for rel_data in rels_array {
+                        // Extract table names before parsing (for UUID fixing)
+                        let rel_id = rel_data
+                            .get("id")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| uuid::Uuid::parse_str(s).ok());
+
+                        if let Some(id) = rel_id {
+                            let source_name = rel_data
+                                .get("source_table_name")
                                 .and_then(|v| v.as_str())
-                                .and_then(|s| uuid::Uuid::parse_str(s).ok());
-                            
-                            if let Some(id) = rel_id {
-                                let source_name = rel_data.get("source_table_name")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string());
-                                let target_name = rel_data.get("target_table_name")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string());
-                                relationship_table_names.insert(id, (source_name, target_name));
+                                .map(|s| s.to_string());
+                            let target_name = rel_data
+                                .get("target_table_name")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            relationship_table_names.insert(id, (source_name, target_name));
+                        }
+
+                        // Parse relationship
+                        match self.parse_relationship(rel_data) {
+                            Ok(rel) => {
+                                all_relationships.push(rel);
                             }
-                            
-                            // Parse relationship
-                            match self.parse_relationship(rel_data) {
-                                Ok(rel) => {
-                                    all_relationships.push(rel);
-                                },
-                                Err(e) => {
-                                    warn!("[GitService] Failed to parse relationship: {}", e);
-                                }
+                            Err(e) => {
+                                warn!("[GitService] Failed to parse relationship: {}", e);
                             }
                         }
                     }
                 }
             }
-            
+
             if !all_relationships.is_empty() {
                 info!(
                     "[GitService] Loaded {} relationships from {:?}",
@@ -270,21 +266,25 @@ impl GitService {
                 );
                 info!(
                     "[GitService] Relationship details: {:?}",
-                    all_relationships.iter().map(|r| format!(
-                        "id={}, source={}, target={}",
-                        r.id, r.source_table_id, r.target_table_id
-                    )).collect::<Vec<_>>()
+                    all_relationships
+                        .iter()
+                        .map(|r| format!(
+                            "id={}, source={}, target={}",
+                            r.id, r.source_table_id, r.target_table_id
+                        ))
+                        .collect::<Vec<_>>()
                 );
             }
         } else {
-            info!("[GitService] Relationships file does not exist: {:?}", control_file);
+            info!(
+                "[GitService] Relationships file does not exist: {:?}",
+                control_file
+            );
         }
 
         // Build a map of table names to UUIDs for matching relationships by name
-        let table_name_to_id: HashMap<String, Uuid> = tables
-            .iter()
-            .map(|t| (t.name.clone(), t.id))
-            .collect();
+        let table_name_to_id: HashMap<String, Uuid> =
+            tables.iter().map(|t| (t.name.clone(), t.id)).collect();
 
         // Separate valid and orphaned relationships
         let mut valid_relationships = Vec::new();
@@ -294,45 +294,45 @@ impl GitService {
         for mut rel in all_relationships {
             let mut source_exists = table_ids.contains(&rel.source_table_id);
             let mut target_exists = table_ids.contains(&rel.target_table_id);
-            
+
             // If UUIDs don't match, try to match by table name (from relationships.yaml metadata)
             // This handles the case where tables got new UUIDs but relationships still reference old ones
             if !source_exists || !target_exists {
                 let mut updated = false;
-                
+
                 // Get table names for this relationship
-                if let Some((source_name_opt, target_name_opt)) = relationship_table_names.get(&rel.id) {
+                if let Some((source_name_opt, target_name_opt)) =
+                    relationship_table_names.get(&rel.id)
+                {
                     // Try to fix source table ID by name
-                    if !source_exists {
-                        if let Some(source_name) = source_name_opt {
-                            if let Some(&correct_source_id) = table_name_to_id.get(source_name) {
-                                info!(
-                                    "[GitService] Fixing relationship {}: updating source_table_id from {} to {} (matched by name: {})",
-                                    rel.id, rel.source_table_id, correct_source_id, source_name
-                                );
-                                rel.source_table_id = correct_source_id;
-                                source_exists = true;
-                                updated = true;
-                            }
-                        }
+                    if !source_exists
+                        && let Some(source_name) = source_name_opt
+                        && let Some(&correct_source_id) = table_name_to_id.get(source_name)
+                    {
+                        info!(
+                            "[GitService] Fixing relationship {}: updating source_table_id from {} to {} (matched by name: {})",
+                            rel.id, rel.source_table_id, correct_source_id, source_name
+                        );
+                        rel.source_table_id = correct_source_id;
+                        source_exists = true;
+                        updated = true;
                     }
-                    
+
                     // Try to fix target table ID by name
-                    if !target_exists {
-                        if let Some(target_name) = target_name_opt {
-                            if let Some(&correct_target_id) = table_name_to_id.get(target_name) {
-                                info!(
-                                    "[GitService] Fixing relationship {}: updating target_table_id from {} to {} (matched by name: {})",
-                                    rel.id, rel.target_table_id, correct_target_id, target_name
-                                );
-                                rel.target_table_id = correct_target_id;
-                                target_exists = true;
-                                updated = true;
-                            }
-                        }
+                    if !target_exists
+                        && let Some(target_name) = target_name_opt
+                        && let Some(&correct_target_id) = table_name_to_id.get(target_name)
+                    {
+                        info!(
+                            "[GitService] Fixing relationship {}: updating target_table_id from {} to {} (matched by name: {})",
+                            rel.id, rel.target_table_id, correct_target_id, target_name
+                        );
+                        rel.target_table_id = correct_target_id;
+                        target_exists = true;
+                        updated = true;
                     }
                 }
-                
+
                 if updated {
                     info!(
                         "[GitService] Successfully fixed relationship {} UUIDs by matching table names",
@@ -346,16 +346,12 @@ impl GitService {
             } else {
                 warn!(
                     "[GitService] Found orphaned relationship {}: source_table_id={} (exists: {}), target_table_id={} (exists: {})",
-                    rel.id,
-                    rel.source_table_id,
-                    source_exists,
-                    rel.target_table_id,
-                    target_exists
+                    rel.id, rel.source_table_id, source_exists, rel.target_table_id, target_exists
                 );
                 orphaned_relationships.push(rel);
             }
         }
-        
+
         info!(
             "[GitService] Relationship validation: {} valid, {} orphaned out of {} total",
             valid_relationships.len(),
@@ -432,11 +428,15 @@ impl GitService {
     }
 
     /// Load relationships from YAML file.
+    #[allow(dead_code)]
     fn load_relationships_from_yaml(&self, yaml_path: &Path) -> Result<Vec<Relationship>> {
         let yaml_content = fs::read_to_string(yaml_path)
             .with_context(|| format!("Failed to read relationships file: {:?}", yaml_path))?;
 
-        info!("[GitService] Read {} bytes from relationships file", yaml_content.len());
+        info!(
+            "[GitService] Read {} bytes from relationships file",
+            yaml_content.len()
+        );
 
         let data: serde_yaml::Value = serde_yaml::from_str(&yaml_content)
             .with_context(|| format!("Failed to parse relationships YAML: {:?}", yaml_path))?;
@@ -447,13 +447,20 @@ impl GitService {
         // Handle both formats: direct array or object with "relationships" key
         if let Some(rels_array) = data.get("relationships").and_then(|v| v.as_sequence()) {
             // Format: { relationships: [...] }
-            info!("[GitService] Found relationships array with {} items", rels_array.len());
+            info!(
+                "[GitService] Found relationships array with {} items",
+                rels_array.len()
+            );
             for (idx, rel_data) in rels_array.iter().enumerate() {
                 match self.parse_relationship(rel_data) {
                     Ok(rel) => {
                         relationships.push(rel);
-                        info!("[GitService] Successfully parsed relationship {}: id={}", idx, relationships.last().unwrap().id);
-                    },
+                        info!(
+                            "[GitService] Successfully parsed relationship {}: id={}",
+                            idx,
+                            relationships.last().unwrap().id
+                        );
+                    }
                     Err(e) => {
                         parse_errors += 1;
                         warn!("[GitService] Failed to parse relationship {}: {}", idx, e);
@@ -462,13 +469,20 @@ impl GitService {
             }
         } else if let Some(rels_array) = data.as_sequence() {
             // Format: [...] (direct array)
-            info!("[GitService] Found direct relationships array with {} items", rels_array.len());
+            info!(
+                "[GitService] Found direct relationships array with {} items",
+                rels_array.len()
+            );
             for (idx, rel_data) in rels_array.iter().enumerate() {
                 match self.parse_relationship(rel_data) {
                     Ok(rel) => {
                         relationships.push(rel);
-                        info!("[GitService] Successfully parsed relationship {}: id={}", idx, relationships.last().unwrap().id);
-                    },
+                        info!(
+                            "[GitService] Successfully parsed relationship {}: id={}",
+                            idx,
+                            relationships.last().unwrap().id
+                        );
+                    }
                     Err(e) => {
                         parse_errors += 1;
                         warn!("[GitService] Failed to parse relationship {}: {}", idx, e);
@@ -476,10 +490,16 @@ impl GitService {
                 }
             }
         } else {
-            warn!("[GitService] YAML file does not contain a relationships array or object with 'relationships' key");
+            warn!(
+                "[GitService] YAML file does not contain a relationships array or object with 'relationships' key"
+            );
         }
 
-        info!("[GitService] Parsed {} relationships from YAML ({} parse errors)", relationships.len(), parse_errors);
+        info!(
+            "[GitService] Parsed {} relationships from YAML ({} parse errors)",
+            relationships.len(),
+            parse_errors
+        );
         Ok(relationships)
     }
 
@@ -556,12 +576,8 @@ impl GitService {
             .map(|s| s.to_string());
 
         // Load optional/mandatory flags (Crow's Foot notation)
-        let source_optional = data
-            .get("source_optional")
-            .and_then(|v| v.as_bool());
-        let target_optional = data
-            .get("target_optional")
-            .and_then(|v| v.as_bool());
+        let source_optional = data.get("source_optional").and_then(|v| v.as_bool());
+        let target_optional = data.get("target_optional").and_then(|v| v.as_bool());
 
         let created_at = data
             .get("created_at")
@@ -634,10 +650,8 @@ impl GitService {
         let control_file = git_dir.join("relationships.yaml");
 
         // Create a lookup map for table names by ID
-        let table_name_map: HashMap<Uuid, &str> = tables
-            .iter()
-            .map(|t| (t.id, t.name.as_str()))
-            .collect();
+        let table_name_map: HashMap<Uuid, &str> =
+            tables.iter().map(|t| (t.id, t.name.as_str())).collect();
 
         // Convert relationships to YAML format
         let mut rels_data = Vec::new();
@@ -683,9 +697,15 @@ impl GitService {
                     "cardinality".to_string(),
                     serde_json::Value::String(card_str.to_string()),
                 );
-                info!("Saving relationship {} with cardinality: {}", rel.id, card_str);
+                info!(
+                    "Saving relationship {} with cardinality: {}",
+                    rel.id, card_str
+                );
             } else {
-                warn!("Relationship {} has no cardinality - not saving cardinality field", rel.id);
+                warn!(
+                    "Relationship {} has no cardinality - not saving cardinality field",
+                    rel.id
+                );
             }
 
             // Save optional/mandatory flags (Crow's Foot notation)
@@ -729,7 +749,7 @@ impl GitService {
             // Save etl_job_metadata (for ETL-specific fields)
             if let Some(ref etl) = rel.etl_job_metadata {
                 let mut etl_data = serde_json::Map::new();
-                
+
                 // Include job_name if it's not empty
                 if !etl.job_name.is_empty() {
                     etl_data.insert(
@@ -737,7 +757,7 @@ impl GitService {
                         serde_json::Value::String(etl.job_name.clone()),
                     );
                 }
-                
+
                 // Save ETL-specific notes if they exist (separate from relationship notes)
                 if let Some(ref notes) = etl.notes {
                     etl_data.insert(
@@ -745,14 +765,14 @@ impl GitService {
                         serde_json::Value::String(notes.clone()),
                     );
                 }
-                
+
                 if let Some(ref freq) = etl.frequency {
                     etl_data.insert(
                         "frequency".to_string(),
                         serde_json::Value::String(freq.clone()),
                     );
                 }
-                
+
                 // Always include etl_job_metadata if it has any content
                 if !etl_data.is_empty() {
                     rel_data.insert(
@@ -769,7 +789,9 @@ impl GitService {
                     crate::models::enums::RelationshipType::DataFlow => "DataFlow",
                     crate::models::enums::RelationshipType::Dependency => "Dependency",
                     crate::models::enums::RelationshipType::ForeignKey => "ForeignKey",
-                    crate::models::enums::RelationshipType::EtlTransformation => "EtlTransformation",
+                    crate::models::enums::RelationshipType::EtlTransformation => {
+                        "EtlTransformation"
+                    }
                 };
                 rel_data.insert(
                     "relationship_type".to_string(),
@@ -811,6 +833,7 @@ impl GitService {
     }
 
     /// Save DrawIO XML file.
+    #[allow(dead_code)]
     pub fn save_drawio_xml(&self, xml_content: &str) -> Result<PathBuf> {
         let git_dir = self
             .git_directory
@@ -827,6 +850,7 @@ impl GitService {
     }
 
     /// Auto-commit and push changes (optional, for future implementation).
+    #[allow(dead_code)]
     pub fn auto_commit_and_push(&self, _message: &str) -> Result<()> {
         // TODO: Implement Git commit and push
         // This would use git2 to stage files, commit, and optionally push

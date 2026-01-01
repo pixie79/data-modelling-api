@@ -66,6 +66,7 @@ pub struct Relationship {
 }
 
 impl Relationship {
+    #[allow(dead_code)]
     pub fn new(source_table_id: Uuid, target_table_id: Uuid) -> Self {
         let now = Utc::now();
         Self {

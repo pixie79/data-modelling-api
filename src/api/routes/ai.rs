@@ -1,13 +1,14 @@
 //! AI service routes.
 
-use axum::{extract::State, http::StatusCode, response::Json, routing::post, Router};
+use axum::{Router, extract::State, http::StatusCode, response::Json, routing::post};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use super::tables::AppState;
 use crate::services::ai_service::{AIErrorResolution, AIService};
 use tracing::warn;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct ResolveErrorsRequest {
     sql_content: Option<String>,
     yaml_content: Option<String>,
@@ -15,7 +16,7 @@ struct ResolveErrorsRequest {
     errors: Option<Vec<String>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct ResolveErrorsResponse {
     resolutions: Vec<AIErrorResolution>,
 }
@@ -26,6 +27,17 @@ pub fn ai_router() -> Router<AppState> {
 }
 
 /// POST /ai/resolve-errors - Use AI to resolve import errors
+#[utoipa::path(
+    post,
+    path = "/ai/resolve-errors",
+    tag = "AI",
+    request_body = ResolveErrorsRequest,
+    responses(
+        (status = 200, description = "AI resolutions generated successfully", body = ResolveErrorsResponse),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 async fn resolve_errors(
     State(_state): State<AppState>,
     Json(request): Json<ResolveErrorsRequest>,

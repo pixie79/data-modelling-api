@@ -2,14 +2,14 @@
 
 use axum::routing::put;
 use axum::{
+    Router,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::Json,
     routing::{get, post},
-    Router,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -18,25 +18,15 @@ use crate::models::enums::{
     DataVaultClassification, DatabaseType, MedallionLayer, ModelingLevel, SCDPattern,
 };
 use crate::models::{Column, Position, Table};
-use crate::services::{FilterService, ModelService};
+use crate::services::FilterService;
 
 use super::collaboration;
 
-use super::auth::SessionStore;
-
-/// Shared application state
-#[derive(Clone)]
-pub struct AppState {
-    pub model_service: std::sync::Arc<tokio::sync::Mutex<ModelService>>,
-    pub collaboration_channels: std::sync::Arc<
-        tokio::sync::Mutex<
-            HashMap<String, tokio::sync::broadcast::Sender<collaboration::CollaborationMessage>>,
-        >,
-    >,
-    pub session_store: SessionStore,
-}
+// Re-export AppState from app_state module for backwards compatibility
+pub use super::app_state::AppState;
 
 /// Query parameters for GET /tables
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct GetTablesQuery {
     modeling_level: Option<String>,
@@ -46,6 +36,7 @@ pub struct GetTablesQuery {
 }
 
 /// Request body for creating a table
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CreateTableRequest {
     pub name: String,
@@ -75,6 +66,7 @@ pub struct CreateTableRequest {
 }
 
 /// Request body for filtering tables
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct FilterTablesRequest {
     #[serde(default)]
@@ -91,6 +83,7 @@ pub struct FilterTablesRequest {
 }
 
 /// Create the tables router
+#[allow(dead_code)]
 pub fn tables_router() -> Router<AppState> {
     // In axum 0.8, path parameters use curly braces {} instead of colons :
     Router::new()
@@ -105,6 +98,7 @@ pub fn tables_router() -> Router<AppState> {
 }
 
 /// GET /tables - Get all tables, optionally filtered
+#[allow(dead_code)]
 async fn get_tables(
     State(state): State<AppState>,
     Query(query): Query<GetTablesQuery>,
@@ -115,7 +109,7 @@ async fn get_tables(
         warn!("[GET /tables] Failed to ensure workspace loaded: {}", e);
         return Ok(Json(json!([])));
     }
-    
+
     let mut model_service = state.model_service.lock().await;
 
     // Try to ensure model is available (reload from temp directories if needed)
@@ -181,6 +175,7 @@ async fn get_tables(
 }
 
 /// GET /tables/:table_id - Get a single table by ID
+#[allow(dead_code)]
 async fn get_table(
     State(state): State<AppState>,
     Path(table_id): Path<String>,
@@ -201,6 +196,7 @@ async fn get_table(
 }
 
 /// POST /tables - Create a new table manually
+#[allow(dead_code)]
 async fn create_table(
     State(state): State<AppState>,
     Json(request): Json<CreateTableRequest>,
@@ -416,6 +412,7 @@ async fn create_table(
 }
 
 /// PUT /tables/:table_id - Update table properties
+#[allow(dead_code)]
 async fn update_table(
     State(state): State<AppState>,
     Path(table_id): Path<String>,
@@ -481,7 +478,9 @@ async fn update_table(
             // If the error is "No model available", return a more specific status code
             let error_msg = e.to_string();
             if error_msg.contains("No model available") {
-                warn!("[Tables] Model is missing. This can happen if the backend restarted. User should re-import or load the model.");
+                warn!(
+                    "[Tables] Model is missing. This can happen if the backend restarted. User should re-import or load the model."
+                );
                 return Err(StatusCode::PRECONDITION_FAILED); // 428 - Precondition Required
             }
 
@@ -491,6 +490,7 @@ async fn update_table(
 }
 
 /// DELETE /tables/:table_id - Delete a table
+#[allow(dead_code)]
 async fn delete_table(
     State(state): State<AppState>,
     Path(table_id): Path<String>,
@@ -543,14 +543,24 @@ async fn delete_table(
                 if let Some(model_ref) = model {
                     use crate::services::git_service::GitService;
                     use std::path::Path;
-                    
+
                     let mut git_service = GitService::new();
-                    if let Err(e) = git_service.set_git_directory_path(Path::new(&git_directory_path)) {
-                        warn!("Failed to set git directory for relationship save after table delete: {}", e);
+                    if let Err(e) =
+                        git_service.set_git_directory_path(Path::new(&git_directory_path))
+                    {
+                        warn!(
+                            "Failed to set git directory for relationship save after table delete: {}",
+                            e
+                        );
                     } else {
                         // Save remaining relationships (those not involving the deleted table)
-                        if let Err(e) = git_service.save_relationships_to_yaml(&model_ref.relationships, &model_ref.tables) {
-                            warn!("Failed to auto-save relationships to YAML after table delete: {}", e);
+                        if let Err(e) = git_service
+                            .save_relationships_to_yaml(&model_ref.relationships, &model_ref.tables)
+                        {
+                            warn!(
+                                "Failed to auto-save relationships to YAML after table delete: {}",
+                                e
+                            );
                         }
                     }
                 }
@@ -564,6 +574,7 @@ async fn delete_table(
 }
 
 /// POST /tables/filter - Filter tables by multiple criteria
+#[allow(dead_code)]
 async fn filter_tables(
     State(state): State<AppState>,
     Json(request): Json<FilterTablesRequest>,
@@ -647,6 +658,7 @@ async fn filter_tables(
 }
 
 /// GET /tables/stats - Get statistics about tables
+#[allow(dead_code)]
 async fn get_table_stats(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
     let model_service = state.model_service.lock().await;
 
@@ -678,6 +690,7 @@ async fn get_table_stats(State(state): State<AppState>) -> Result<Json<Value>, S
 }
 
 /// PUT /tables/:table_id/position - Update table position
+#[allow(dead_code)]
 async fn update_table_position(
     State(state): State<AppState>,
     Path(table_id): Path<String>,
@@ -741,10 +754,11 @@ async fn update_table_position(
 
         let canvas_layout_service = CanvasLayoutService::new(Path::new(&git_directory_path));
         // Get model immutably for canvas layout update
-        if let Some(model) = model_service.get_current_model() {
-            if let Err(e) = canvas_layout_service.update_table_position(model, table_uuid, position_to_save) {
-                warn!("Failed to auto-update canvas layout YAML: {}", e);
-            }
+        if let Some(model) = model_service.get_current_model()
+            && let Err(e) =
+                canvas_layout_service.update_table_position(model, table_uuid, position_to_save)
+        {
+            warn!("Failed to auto-update canvas layout YAML: {}", e);
         }
     }
 

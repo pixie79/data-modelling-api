@@ -15,7 +15,9 @@ pub struct OAuthService {
 #[derive(Debug, Deserialize)]
 struct GitHubTokenResponse {
     access_token: String,
+    #[allow(dead_code)]
     token_type: String,
+    #[allow(dead_code)]
     scope: String,
 }
 
@@ -23,6 +25,7 @@ struct GitHubTokenResponse {
 struct GitHubUser {
     id: u64,
     login: String,
+    #[allow(dead_code)]
     name: Option<String>,
     email: Option<String>,
 }
@@ -45,23 +48,31 @@ impl OAuthService {
     }
 
     /// Generate GitHub OAuth authorization URL
+    #[allow(dead_code)]
     pub fn get_authorize_url(&self) -> Result<String> {
-        self.get_authorize_url_with_source("web")
+        // Back-compat default: historically this embedded source in state.
+        // New callers should generate a random state and call `get_authorize_url_with_state`.
+        self.get_authorize_url_with_state("web")
     }
-    
-    /// Generate GitHub OAuth authorization URL with source tracking
-    /// The source is embedded in the state parameter for callback routing
-    /// - "web" for web browser flow
-    /// - "desktop:state_id" for desktop app flow (state_id used for polling)
-    pub fn get_authorize_url_with_source(&self, source: &str) -> Result<String> {
-        // Use source as the state - this will be returned in the callback
+
+    /// Generate GitHub OAuth authorization URL with an explicit `state` value.
+    ///
+    /// Security: the caller should pass a cryptographically random, server-validated CSRF token.
+    pub fn get_authorize_url_with_state(&self, state: &str) -> Result<String> {
         let url = format!(
             "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&scope=user:email&state={}",
             urlencoding::encode(&self.client_id),
             urlencoding::encode(&self.redirect_uri),
-            urlencoding::encode(source)
+            urlencoding::encode(state)
         );
         Ok(url)
+    }
+
+    /// Deprecated: embeds caller-controlled values into OAuth `state`.
+    /// Kept temporarily for compatibility; do not use for new code.
+    #[allow(dead_code)]
+    pub fn get_authorize_url_with_source(&self, source: &str) -> Result<String> {
+        self.get_authorize_url_with_state(source)
     }
 
     /// Exchange authorization code for access token
@@ -116,10 +127,7 @@ impl OAuthService {
 
         if !user_response.status().is_success() {
             let error_text = user_response.text().await.unwrap_or_default();
-            return Err(anyhow::anyhow!(
-                "GitHub user API failed: {}",
-                error_text
-            ));
+            return Err(anyhow::anyhow!("GitHub user API failed: {}", error_text));
         }
 
         let user: GitHubUser = user_response

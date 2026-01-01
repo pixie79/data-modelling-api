@@ -2,17 +2,19 @@
 
 use crate::models::{DataModel, Relationship, Table};
 use anyhow::{Context, Result};
-use rusqlite::{params, Connection, Row};
+use rusqlite::{Connection, Row, params};
 use serde_json;
 use std::path::Path;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 /// SQLite cache for model data.
+#[allow(dead_code)]
 pub struct CacheService {
     conn: Connection,
 }
 
+#[allow(dead_code)]
 impl CacheService {
     /// Create a new cache service instance.
     pub fn new(db_path: &Path) -> Result<Self> {

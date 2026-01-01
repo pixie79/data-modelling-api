@@ -189,11 +189,11 @@ impl ODCSParser {
 
         // Extract odcl_metadata
         let mut odcl_metadata = HashMap::new();
-        if let Some(metadata) = data.get("odcl_metadata") {
-            if let Some(obj) = metadata.as_object() {
-                for (key, value) in obj {
-                    odcl_metadata.insert(key.clone(), json_value_to_serde_value(value));
-                }
+        if let Some(metadata) = data.get("odcl_metadata")
+            && let Some(obj) = metadata.as_object()
+        {
+            for (key, value) in obj {
+                odcl_metadata.insert(key.clone(), json_value_to_serde_value(value));
             }
         }
 
@@ -375,18 +375,18 @@ impl ODCSParser {
         // Check plural form first
         if let Some(arr) = data.get("medallion_layers").and_then(|v| v.as_array()) {
             for item in arr {
-                if let Some(s) = item.as_str() {
-                    if let Ok(layer) = parse_medallion_layer(s) {
-                        layers.push(layer);
-                    }
+                if let Some(s) = item.as_str()
+                    && let Ok(layer) = parse_medallion_layer(s)
+                {
+                    layers.push(layer);
                 }
             }
         }
         // Check singular form (backward compatibility)
-        else if let Some(s) = data.get("medallion_layer").and_then(|v| v.as_str()) {
-            if let Ok(layer) = parse_medallion_layer(s) {
-                layers.push(layer);
-            }
+        else if let Some(s) = data.get("medallion_layer").and_then(|v| v.as_str())
+            && let Ok(layer) = parse_medallion_layer(s)
+        {
+            layers.push(layer);
         }
 
         layers
@@ -443,46 +443,45 @@ impl ODCSParser {
         }
 
         // Check for quality in metadata (ODCL v3 format)
-        if let Some(metadata) = data.get("metadata") {
-            if let Some(metadata_obj) = metadata.as_object() {
-                if let Some(quality_val) = metadata_obj.get("quality") {
-                    if let Some(arr) = quality_val.as_array() {
-                        // Array of quality rules
-                        for item in arr {
-                            if let Some(obj) = item.as_object() {
-                                let mut rule = HashMap::new();
-                                for (key, value) in obj {
-                                    rule.insert(key.clone(), json_value_to_serde_value(value));
-                                }
-                                quality_rules.push(rule);
-                            }
-                        }
-                    } else if let Some(obj) = quality_val.as_object() {
-                        // Single quality rule object
+        if let Some(metadata) = data.get("metadata")
+            && let Some(metadata_obj) = metadata.as_object()
+            && let Some(quality_val) = metadata_obj.get("quality")
+        {
+            if let Some(arr) = quality_val.as_array() {
+                // Array of quality rules
+                for item in arr {
+                    if let Some(obj) = item.as_object() {
                         let mut rule = HashMap::new();
                         for (key, value) in obj {
                             rule.insert(key.clone(), json_value_to_serde_value(value));
                         }
                         quality_rules.push(rule);
-                    } else if let Some(s) = quality_val.as_str() {
-                        // Simple string quality value
-                        let mut rule = HashMap::new();
-                        rule.insert("value".to_string(), Value::String(s.to_string()));
-                        quality_rules.push(rule);
                     }
                 }
+            } else if let Some(obj) = quality_val.as_object() {
+                // Single quality rule object
+                let mut rule = HashMap::new();
+                for (key, value) in obj {
+                    rule.insert(key.clone(), json_value_to_serde_value(value));
+                }
+                quality_rules.push(rule);
+            } else if let Some(s) = quality_val.as_str() {
+                // Simple string quality value
+                let mut rule = HashMap::new();
+                rule.insert("value".to_string(), Value::String(s.to_string()));
+                quality_rules.push(rule);
             }
         }
 
         // Check for tblproperties field (similar to SQL TBLPROPERTIES)
-        if let Some(tblprops) = data.get("tblproperties") {
-            if let Some(obj) = tblprops.as_object() {
-                for (key, value) in obj {
-                    let mut rule = HashMap::new();
-                    rule.insert("property".to_string(), Value::String(key.clone()));
-                    rule.insert("value".to_string(), json_value_to_serde_value(value));
-                    quality_rules.push(rule);
-                }
+        if let Some(tblprops) = data.get("tblproperties")
+            && let Some(obj) = tblprops.as_object()
+        {
+            for (key, value) in obj {
+                let mut rule = HashMap::new();
+                rule.insert("property".to_string(), Value::String(key.clone()));
+                rule.insert("value".to_string(), json_value_to_serde_value(value));
+                quality_rules.push(rule);
             }
         }
 
@@ -651,10 +650,10 @@ impl ODCSParser {
         // Extract tags from top-level tags field (if not already extracted from customProperties)
         if let Some(tags_arr) = data.get("tags").and_then(|v| v.as_array()) {
             for item in tags_arr {
-                if let Some(s) = item.as_str() {
-                    if !tags.contains(&s.to_string()) {
-                        tags.push(s.to_string());
-                    }
+                if let Some(s) = item.as_str()
+                    && !tags.contains(&s.to_string())
+                {
+                    tags.push(s.to_string());
                 }
             }
         }
@@ -815,14 +814,20 @@ impl ODCSParser {
     /// Returns the UUID if found, otherwise generates a new one.
     fn extract_table_uuid(&self, data: &JsonValue) -> uuid::Uuid {
         // First check the top-level `id` field (ODCS spec: "A unique identifier used to reduce the risk of dataset name collisions, such as a UUID.")
-        if let Some(id_val) = data.get("id") {
-            if let Some(id_str) = id_val.as_str() {
-                if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
-                    tracing::debug!("[ODCSParser] Extracted UUID from top-level 'id' field: {}", uuid);
-                    return uuid;
-                } else {
-                    tracing::warn!("[ODCSParser] Found 'id' field but failed to parse as UUID: {}", id_str);
-                }
+        if let Some(id_val) = data.get("id")
+            && let Some(id_str) = id_val.as_str()
+        {
+            if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                tracing::debug!(
+                    "[ODCSParser] Extracted UUID from top-level 'id' field: {}",
+                    uuid
+                );
+                return uuid;
+            } else {
+                tracing::warn!(
+                    "[ODCSParser] Found 'id' field but failed to parse as UUID: {}",
+                    id_str
+                );
             }
         }
 
@@ -834,36 +839,37 @@ impl ODCSParser {
                         .get("property")
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
-                    if prop_key == "tableUuid" {
-                        if let Some(uuid_str) = prop_obj
-                            .get("value")
-                            .and_then(|v| v.as_str())
-                        {
-                            if let Ok(uuid) = uuid::Uuid::parse_str(uuid_str) {
-                                tracing::debug!("[ODCSParser] Extracted UUID from customProperties.tableUuid: {}", uuid);
-                                return uuid;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Fallback: check odcl_metadata if present (legacy format)
-        if let Some(metadata) = data.get("odcl_metadata").and_then(|v| v.as_object()) {
-            if let Some(uuid_val) = metadata.get("tableUuid") {
-                if let Some(uuid_str) = uuid_val.as_str() {
-                    if let Ok(uuid) = uuid::Uuid::parse_str(uuid_str) {
-                        tracing::debug!("[ODCSParser] Extracted UUID from odcl_metadata.tableUuid: {}", uuid);
+                    if prop_key == "tableUuid"
+                        && let Some(uuid_str) = prop_obj.get("value").and_then(|v| v.as_str())
+                        && let Ok(uuid) = uuid::Uuid::parse_str(uuid_str)
+                    {
+                        tracing::debug!(
+                            "[ODCSParser] Extracted UUID from customProperties.tableUuid: {}",
+                            uuid
+                        );
                         return uuid;
                     }
                 }
             }
         }
 
+        // Fallback: check odcl_metadata if present (legacy format)
+        if let Some(metadata) = data.get("odcl_metadata").and_then(|v| v.as_object())
+            && let Some(uuid_val) = metadata.get("tableUuid")
+            && let Some(uuid_str) = uuid_val.as_str()
+            && let Ok(uuid) = uuid::Uuid::parse_str(uuid_str)
+        {
+            tracing::debug!(
+                "[ODCSParser] Extracted UUID from odcl_metadata.tableUuid: {}",
+                uuid
+            );
+            return uuid;
+        }
+
         // Generate new UUID if not found - THIS WILL CAUSE PROBLEMS IF TABLES DON'T HAVE UUIDs!
         let new_uuid = uuid::Uuid::new_v4();
-        let table_name = data.get("name")
+        let table_name = data
+            .get("name")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
         tracing::warn!(
@@ -902,10 +908,10 @@ impl ODCSParser {
                         "medallionLayers" | "medallion_layers" => {
                             if let Some(arr) = prop_value.and_then(|v| v.as_array()) {
                                 for item in arr {
-                                    if let Some(s) = item.as_str() {
-                                        if let Ok(layer) = parse_medallion_layer(s) {
-                                            medallion_layers.push(layer);
-                                        }
+                                    if let Some(s) = item.as_str()
+                                        && let Ok(layer) = parse_medallion_layer(s)
+                                    {
+                                        medallion_layers.push(layer);
                                     }
                                 }
                             } else if let Some(s) = prop_value.and_then(|v| v.as_str()) {
@@ -950,10 +956,10 @@ impl ODCSParser {
         // Also extract tags from top-level tags field
         if let Some(tags_arr) = data.get("tags").and_then(|v| v.as_array()) {
             for item in tags_arr {
-                if let Some(s) = item.as_str() {
-                    if !tags.contains(&s.to_string()) {
-                        tags.push(s.to_string());
-                    }
+                if let Some(s) = item.as_str()
+                    && !tags.contains(&s.to_string())
+                {
+                    tags.push(s.to_string());
                 }
             }
         }
@@ -969,13 +975,13 @@ impl ODCSParser {
     /// Extract database type from servers in ODCS v3.0.x format.
     fn extract_database_type_from_odcl_v3_servers(&self, data: &JsonValue) -> Option<DatabaseType> {
         // ODCS v3.0.x: servers is an array of Server objects
-        if let Some(servers_arr) = data.get("servers").and_then(|v| v.as_array()) {
-            if let Some(server_obj) = servers_arr.first().and_then(|v| v.as_object()) {
-                return server_obj
-                    .get("type")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| self.parse_database_type(s));
-            }
+        if let Some(servers_arr) = data.get("servers").and_then(|v| v.as_array())
+            && let Some(server_obj) = servers_arr.first().and_then(|v| v.as_object())
+        {
+            return server_obj
+                .get("type")
+                .and_then(|v| v.as_str())
+                .and_then(|s| self.parse_database_type(s));
         }
         None
     }
@@ -1508,7 +1514,7 @@ impl ODCSParser {
                             .get("properties")
                             .and_then(|v| v.as_object())
                             .or_else(|| items_obj.get("fields").and_then(|v| v.as_object()));
-                        
+
                         if let Some(fields_obj) = nested_fields_obj {
                             for (nested_field_name, nested_field_data) in fields_obj {
                                 if let Some(nested_field_obj) = nested_field_data.as_object() {
@@ -1646,10 +1652,11 @@ impl ODCSParser {
             .get("properties")
             .and_then(|v| v.as_object())
             .or_else(|| field_data.get("fields").and_then(|v| v.as_object()));
-        
-        if field_type == "OBJECT" && nested_fields_obj.is_some() {
+
+        if field_type == "OBJECT"
+            && let Some(fields_obj) = nested_fields_obj
+        {
             // Inline nested object - create parent column as OBJECT and extract nested fields
-            let fields_obj = nested_fields_obj.unwrap();
 
             // Create parent column
             columns.push(Column {
@@ -1831,13 +1838,13 @@ impl ODCSParser {
         // Data Contract format: servers can be object or array
         if let Some(servers_obj) = data.get("servers").and_then(|v| v.as_object()) {
             // Object format: { "server_name": { "type": "..." } }
-            if let Some((_, server_data)) = servers_obj.iter().next() {
-                if let Some(server_obj) = server_data.as_object() {
-                    return server_obj
-                        .get("type")
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| self.parse_database_type(s));
-                }
+            if let Some((_, server_data)) = servers_obj.iter().next()
+                && let Some(server_obj) = server_data.as_object()
+            {
+                return server_obj
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| self.parse_database_type(s));
             }
         } else if let Some(servers_arr) = data.get("servers").and_then(|v| v.as_array()) {
             // Array format: [ { "server": "...", "type": "..." } ]
@@ -2036,10 +2043,10 @@ impl ODCSParser {
                 ',' if !in_string && depth == 0 => {
                     // End of current field
                     let trimmed = current_field.trim();
-                    if !trimmed.is_empty() {
-                        if let Some((name, type_part)) = self.parse_field_definition(trimmed) {
-                            fields.push((name, type_part));
-                        }
+                    if !trimmed.is_empty()
+                        && let Some((name, type_part)) = self.parse_field_definition(trimmed)
+                    {
+                        fields.push((name, type_part));
                     }
                     current_field.clear();
                 }
@@ -2051,10 +2058,10 @@ impl ODCSParser {
 
         // Handle last field
         let trimmed = current_field.trim();
-        if !trimmed.is_empty() {
-            if let Some((name, type_part)) = self.parse_field_definition(trimmed) {
-                fields.push((name, type_part));
-            }
+        if !trimmed.is_empty()
+            && let Some((name, type_part)) = self.parse_field_definition(trimmed)
+        {
+            fields.push((name, type_part));
         }
 
         Ok(fields)
@@ -2155,27 +2162,27 @@ fn normalize_data_type(data_type: &str) -> String {
 
     // Handle STRUCT<...>, ARRAY<...>, MAP<...> preserving inner content
     if upper.starts_with("STRUCT") {
-        if let Some(start) = data_type.find('<') {
-            if let Some(end) = data_type.rfind('>') {
-                let inner = &data_type[start + 1..end];
-                return format!("STRUCT<{}>", inner);
-            }
+        if let Some(start) = data_type.find('<')
+            && let Some(end) = data_type.rfind('>')
+        {
+            let inner = &data_type[start + 1..end];
+            return format!("STRUCT<{}>", inner);
         }
         return format!("STRUCT{}", &data_type[6..]);
     } else if upper.starts_with("ARRAY") {
-        if let Some(start) = data_type.find('<') {
-            if let Some(end) = data_type.rfind('>') {
-                let inner = &data_type[start + 1..end];
-                return format!("ARRAY<{}>", inner);
-            }
+        if let Some(start) = data_type.find('<')
+            && let Some(end) = data_type.rfind('>')
+        {
+            let inner = &data_type[start + 1..end];
+            return format!("ARRAY<{}>", inner);
         }
         return format!("ARRAY{}", &data_type[5..]);
     } else if upper.starts_with("MAP") {
-        if let Some(start) = data_type.find('<') {
-            if let Some(end) = data_type.rfind('>') {
-                let inner = &data_type[start + 1..end];
-                return format!("MAP<{}>", inner);
-            }
+        if let Some(start) = data_type.find('<')
+            && let Some(end) = data_type.rfind('>')
+        {
+            let inner = &data_type[start + 1..end];
+            return format!("MAP<{}>", inner);
         }
         return format!("MAP{}", &data_type[3..]);
     }

@@ -2,14 +2,14 @@
 
 use axum::routing::put;
 use axum::{
+    Router,
     extract::{Path, State},
     http::StatusCode,
     response::Json,
     routing::{get, post},
-    Router,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -19,6 +19,7 @@ use crate::models::relationship::{ETLJobMetadata, ForeignKeyDetails, VisualMetad
 use crate::services::RelationshipService;
 
 /// Create the relationships router
+#[allow(dead_code)]
 pub fn relationships_router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_relationships).post(create_relationship))
@@ -38,6 +39,7 @@ pub fn relationships_router() -> Router<AppState> {
 }
 
 /// Request to create a relationship
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CreateRelationshipRequest {
     pub source_table_id: String,
@@ -53,6 +55,7 @@ pub struct CreateRelationshipRequest {
 }
 
 /// Request to update a relationship
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct UpdateRelationshipRequest {
     #[serde(default)]
@@ -72,6 +75,7 @@ pub struct UpdateRelationshipRequest {
 }
 
 /// Request to check for circular dependency
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CheckCircularRequest {
     pub source_table_id: String,
@@ -79,6 +83,7 @@ pub struct CheckCircularRequest {
 }
 
 /// GET /relationships - Get all relationships
+#[allow(dead_code)]
 async fn get_relationships(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
     let model_service = state.model_service.lock().await;
 
@@ -90,7 +95,7 @@ async fn get_relationships(State(state): State<AppState>) -> Result<Json<Value>,
                 m.relationships.len()
             );
             m
-        },
+        }
         None => {
             warn!("[Relationships Route] No model available");
             return Ok(Json(json!([])));
@@ -100,7 +105,11 @@ async fn get_relationships(State(state): State<AppState>) -> Result<Json<Value>,
     info!(
         "[Relationships Route] Returning {} relationships from model (relationship IDs: {:?})",
         model.relationships.len(),
-        model.relationships.iter().map(|r| r.id.to_string()).collect::<Vec<_>>()
+        model
+            .relationships
+            .iter()
+            .map(|r| r.id.to_string())
+            .collect::<Vec<_>>()
     );
 
     let relationships_json: Vec<Value> = model
@@ -113,6 +122,7 @@ async fn get_relationships(State(state): State<AppState>) -> Result<Json<Value>,
 }
 
 /// POST /relationships - Create a new relationship
+#[allow(dead_code)]
 async fn create_relationship(
     State(state): State<AppState>,
     Json(request): Json<CreateRelationshipRequest>,
@@ -135,10 +145,11 @@ async fn create_relationship(
     };
 
     // Check for duplicate relationship BEFORE creating
-    let existing = model.relationships.iter().find(|r| {
-        r.source_table_id == source_table_id && r.target_table_id == target_table_id
-    });
-    
+    let existing = model
+        .relationships
+        .iter()
+        .find(|r| r.source_table_id == source_table_id && r.target_table_id == target_table_id);
+
     if existing.is_some() {
         return Err(StatusCode::BAD_REQUEST); // Relationship already exists
     }
@@ -199,7 +210,7 @@ async fn create_relationship(
         Ok(relationship) => {
             // Add relationship to the original model (service works on a clone)
             model.relationships.push(relationship.clone());
-            
+
             Ok(Json(
                 serde_json::to_value(relationship).unwrap_or(json!({})),
             ))
@@ -209,6 +220,7 @@ async fn create_relationship(
 }
 
 /// GET /relationships/:relationship_id - Get a relationship by ID
+#[allow(dead_code)]
 async fn get_relationship(
     State(state): State<AppState>,
     Path(relationship_id): Path<String>,
@@ -237,6 +249,7 @@ async fn get_relationship(
 }
 
 /// PUT /relationships/:relationship_id - Update a relationship
+#[allow(dead_code)]
 async fn update_relationship(
     State(state): State<AppState>,
     Path(relationship_id): Path<String>,
@@ -308,7 +321,7 @@ async fn update_relationship(
         .and_then(|v| serde_json::from_value::<ETLJobMetadata>(v.clone()).ok());
 
     let notes = request.notes.clone();
-    
+
     // Parse optional/mandatory flags
     let source_optional = request.source_optional;
     let target_optional = request.target_optional;
@@ -334,23 +347,27 @@ async fn update_relationship(
             {
                 *existing = relationship.clone();
             }
-            
+
             // Debug: Log cardinality before saving
-            if let Some(rel) = model.relationships.iter().find(|r| r.id == relationship_uuid) {
+            if let Some(rel) = model
+                .relationships
+                .iter()
+                .find(|r| r.id == relationship_uuid)
+            {
                 tracing::debug!(
                     "Relationship {} cardinality before save: {:?}",
                     relationship_uuid,
                     rel.cardinality
                 );
             }
-            
+
             // Auto-save relationships to YAML if model has git directory
             // Use set_git_directory_path to avoid remapping and reparsing
             let git_directory_path = model.git_directory_path.clone();
             if !git_directory_path.is_empty() {
                 use crate::services::git_service::GitService;
                 use std::path::Path;
-                
+
                 // Create GitService and set directory path (without loading/reparsing)
                 let mut git_service = GitService::new();
                 if let Err(e) = git_service.set_git_directory_path(Path::new(&git_directory_path)) {
@@ -359,11 +376,17 @@ async fn update_relationship(
                     // Save only the relationships, not reloading the model
                     // Use the updated model relationships which includes the cardinality
                     // Pass tables to include table names for human readability
-                    if let Err(e) = git_service.save_relationships_to_yaml(&model.relationships, &model.tables) {
+                    if let Err(e) =
+                        git_service.save_relationships_to_yaml(&model.relationships, &model.tables)
+                    {
                         warn!("Failed to auto-save relationships to YAML: {}", e);
                     } else {
                         // Debug: Verify cardinality was saved
-                        if let Some(rel) = model.relationships.iter().find(|r| r.id == relationship_uuid) {
+                        if let Some(rel) = model
+                            .relationships
+                            .iter()
+                            .find(|r| r.id == relationship_uuid)
+                        {
                             tracing::debug!(
                                 "Relationship {} cardinality after save: {:?}",
                                 relationship_uuid,
@@ -373,7 +396,7 @@ async fn update_relationship(
                     }
                 }
             }
-            
+
             Ok(Json(
                 serde_json::to_value(relationship).unwrap_or(json!({})),
             ))
@@ -384,11 +407,13 @@ async fn update_relationship(
 }
 
 /// POST /relationships/orphaned/delete - Delete orphaned relationships (relationships referencing non-existent tables)
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct DeleteOrphanedRelationshipsRequest {
     relationship_ids: Vec<String>,
 }
 
+#[allow(dead_code)]
 async fn delete_orphaned_relationships(
     State(state): State<AppState>,
     Json(request): Json<DeleteOrphanedRelationshipsRequest>,
@@ -413,7 +438,9 @@ async fn delete_orphaned_relationships(
 
     // Remove orphaned relationships from model
     let initial_count = model.relationships.len();
-    model.relationships.retain(|r| !relationship_uuids.contains(&r.id));
+    model
+        .relationships
+        .retain(|r| !relationship_uuids.contains(&r.id));
     let deleted_count = initial_count - model.relationships.len();
 
     if deleted_count == 0 {
@@ -428,14 +455,25 @@ async fn delete_orphaned_relationships(
 
         let mut git_service = GitService::new();
         if let Err(e) = git_service.set_git_directory_path(Path::new(&git_directory_path)) {
-            warn!("Failed to set git directory for relationship save after orphaned delete: {}", e);
+            warn!(
+                "Failed to set git directory for relationship save after orphaned delete: {}",
+                e
+            );
         } else {
             // Save remaining relationships (after deletion)
-            if let Err(e) = git_service.save_relationships_to_yaml(&model.relationships, &model.tables) {
-                warn!("Failed to auto-save relationships to YAML after orphaned delete: {}", e);
+            if let Err(e) =
+                git_service.save_relationships_to_yaml(&model.relationships, &model.tables)
+            {
+                warn!(
+                    "Failed to auto-save relationships to YAML after orphaned delete: {}",
+                    e
+                );
             } else {
-                info!("Saved {} relationships to YAML after deleting {} orphaned relationships", 
-                    model.relationships.len(), deleted_count);
+                info!(
+                    "Saved {} relationships to YAML after deleting {} orphaned relationships",
+                    model.relationships.len(),
+                    deleted_count
+                );
             }
         }
     }
@@ -447,6 +485,7 @@ async fn delete_orphaned_relationships(
 }
 
 /// DELETE /relationships/:relationship_id - Delete a relationship
+#[allow(dead_code)]
 async fn delete_relationship(
     State(state): State<AppState>,
     Path(relationship_id): Path<String>,
@@ -470,26 +509,37 @@ async fn delete_relationship(
         Ok(true) => {
             // Remove from model
             model.relationships.retain(|r| r.id != relationship_uuid);
-            
+
             // Save updated relationships to YAML
             let git_directory_path = model.git_directory_path.clone();
             if !git_directory_path.is_empty() {
                 use crate::services::git_service::GitService;
                 use std::path::Path;
-                
+
                 let mut git_service = GitService::new();
                 if let Err(e) = git_service.set_git_directory_path(Path::new(&git_directory_path)) {
-                    warn!("Failed to set git directory for relationship save after delete: {}", e);
+                    warn!(
+                        "Failed to set git directory for relationship save after delete: {}",
+                        e
+                    );
                 } else {
                     // Save remaining relationships (after deletion)
-                    if let Err(e) = git_service.save_relationships_to_yaml(&model.relationships, &model.tables) {
-                        warn!("Failed to auto-save relationships to YAML after delete: {}", e);
+                    if let Err(e) =
+                        git_service.save_relationships_to_yaml(&model.relationships, &model.tables)
+                    {
+                        warn!(
+                            "Failed to auto-save relationships to YAML after delete: {}",
+                            e
+                        );
                     } else {
-                        info!("Saved {} relationships to YAML after deletion", model.relationships.len());
+                        info!(
+                            "Saved {} relationships to YAML after deletion",
+                            model.relationships.len()
+                        );
                     }
                 }
             }
-            
+
             Ok(Json(json!({"message": "Relationship deleted"})))
         }
         Ok(false) => Err(StatusCode::NOT_FOUND),
@@ -498,6 +548,7 @@ async fn delete_relationship(
 }
 
 /// POST /relationships/check-circular - Check if a relationship would create a circular dependency
+#[allow(dead_code)]
 async fn check_circular_dependency(
     State(state): State<AppState>,
     Json(request): Json<CheckCircularRequest>,
@@ -535,6 +586,7 @@ async fn check_circular_dependency(
 }
 
 /// Request body for updating relationship routing
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct UpdateRelationshipRoutingRequest {
     #[serde(default)]
@@ -548,6 +600,7 @@ pub struct UpdateRelationshipRoutingRequest {
 }
 
 /// PUT /relationships/:relationship_id/routing - Update relationship routing
+#[allow(dead_code)]
 async fn update_relationship_routing(
     State(state): State<AppState>,
     Path(relationship_id): Path<String>,
@@ -592,10 +645,14 @@ async fn update_relationship_routing(
 
         let canvas_layout_service = CanvasLayoutService::new(Path::new(&git_directory_path));
         // Get model immutably for canvas layout update
-        if let Some(model) = model_service.get_current_model() {
-            if let Err(e) = canvas_layout_service.update_relationship_routing(model, relationship_uuid, visual_metadata_to_save) {
-                warn!("Failed to auto-update canvas layout YAML: {}", e);
-            }
+        if let Some(model) = model_service.get_current_model()
+            && let Err(e) = canvas_layout_service.update_relationship_routing(
+                model,
+                relationship_uuid,
+                visual_metadata_to_save,
+            )
+        {
+            warn!("Failed to auto-update canvas layout YAML: {}", e);
         }
     }
 

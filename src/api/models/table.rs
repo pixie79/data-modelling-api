@@ -51,6 +51,7 @@ pub struct Table {
 }
 
 impl Table {
+    #[allow(dead_code)]
     pub fn new(name: String, columns: Vec<Column>) -> Self {
         let now = Utc::now();
         Self {

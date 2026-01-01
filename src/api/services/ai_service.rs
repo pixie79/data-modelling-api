@@ -147,6 +147,7 @@ Provide the corrected YAML and explain what was wrong. Return your response as J
     }
 
     /// Use AI to suggest relationships between tables.
+    #[allow(dead_code)]
     pub async fn suggest_relationships(
         &self,
         tables: &[crate::models::Table],

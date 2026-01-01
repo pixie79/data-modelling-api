@@ -132,7 +132,7 @@ pub struct DrawIOPoint {
 
 impl DrawIOCell {
     /// Create a new DrawIO cell for a table.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code, clippy::too_many_arguments)]
     pub fn new_table(
         table_id: Uuid,
         table_name: String,
