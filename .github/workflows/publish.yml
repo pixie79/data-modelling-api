@@ -145,12 +145,14 @@ jobs:
       - name: Verify package contents
         run: |
           # List files that would be included in the package (doesn't create package)
-          cargo package --list
+          # --allow-dirty allows Cargo.lock to be regenerated during the build
+          cargo package --list --allow-dirty
 
       - name: Build crate package
         run: |
           # Create the package file (.crate)
-          cargo package
+          # --allow-dirty allows Cargo.lock to be regenerated during the build
+          cargo package --allow-dirty
 
       - name: Login to crates.io
         env:
@@ -164,7 +166,10 @@ jobs:
         run: |
           # Use cargo publish --dry-run to verify everything is ready for publishing
           # This checks metadata, dependencies, and registry compatibility
-          cargo publish --dry-run
+          # --allow-dirty allows Cargo.lock to be regenerated during the build
+          cargo publish --dry-run --allow-dirty
 
       - name: Publish to crates.io
-        run: cargo publish
+        run: |
+          # --allow-dirty allows Cargo.lock to be regenerated during the build
+          cargo publish --allow-dirty
