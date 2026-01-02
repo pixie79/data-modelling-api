@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, owner_id, email, created_at, updated_at\n            FROM workspaces\n            WHERE email = $1\n            ",
+  "query": "\n            SELECT id, owner_id, email, name, type as workspace_type, created_at, updated_at\n            FROM workspaces\n            WHERE owner_id = $1\n            ORDER BY created_at DESC\n            ",
   "describe": {
     "columns": [
       {
@@ -20,18 +20,28 @@
       },
       {
         "ordinal": 3,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "workspace_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -39,8 +49,10 @@
       false,
       false,
       false,
+      true,
+      false,
       false
     ]
   },
-  "hash": "9a653c56070d8e94baf674cd9dcf61c896bffd24d3e626ed75fa465217caaab4"
+  "hash": "0e817d2ff814b802bdc08c3ae70386c6fb3bc011a96d91d80562e04caabf4cc5"
 }

@@ -3,8 +3,6 @@
 //! Aggregates all route handlers and schemas for OpenAPI documentation generation.
 
 use utoipa::{Modify, OpenApi};
-
-/// OpenAPI documentation structure
 #[derive(OpenApi)]
 #[openapi(
     paths(
@@ -124,10 +122,10 @@ use utoipa::{Modify, OpenApi};
     info(
         title = "Data Modelling API",
         description = "REST API for data modeling, schema management, and collaboration",
-        version = "1.0.0",
+        version = "1.1.0",
         contact(
             name = "API Support",
-            email = "mark@olliver.me.uk"
+            email = "mark@opendatamodelling.com"
         ),
         license(
             name = "MIT",
@@ -136,7 +134,7 @@ use utoipa::{Modify, OpenApi};
     ),
     servers(
         (url = "http://localhost:8081/api/v1", description = "Local development server"),
-        (url = "https://api.example.com/api/v1", description = "Production server")
+        (url = "https://api.opendatamodelling.com/api/v1", description = "Production server")
     )
 )]
 pub struct ApiDoc;
@@ -145,6 +143,9 @@ struct SecurityAddon;
 
 impl Modify for SecurityAddon {
     fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        // Update version to match Cargo.toml version
+        openapi.info.version = env!("CARGO_PKG_VERSION").to_string();
+
         // Initialize components if they don't exist
         if openapi.components.is_none() {
             openapi.components = Some(utoipa::openapi::Components::new());

@@ -26,6 +26,8 @@ pub struct WorkspaceInfo {
     pub id: Uuid,
     pub owner_id: Uuid,
     pub email: String,
+    pub name: Option<String>,
+    pub workspace_type: Option<String>, // Using workspace_type to avoid conflict with Rust's type keyword
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -153,6 +155,28 @@ pub trait StorageBackend: Send + Sync {
 
     /// Get all workspaces (for admin/list operations)
     async fn get_workspaces(&self) -> Result<Vec<WorkspaceInfo>, super::StorageError>;
+
+    /// Get workspaces filtered by owner_id (for /api/v1/workspaces endpoint)
+    async fn get_workspaces_by_owner(
+        &self,
+        owner_id: Uuid,
+    ) -> Result<Vec<WorkspaceInfo>, super::StorageError>;
+
+    /// Create workspace with name and type (for /api/v1/workspaces endpoint)
+    async fn create_workspace_with_details(
+        &self,
+        email: String,
+        user_context: &UserContext,
+        name: String,
+        workspace_type: String,
+    ) -> Result<WorkspaceInfo, super::StorageError>;
+
+    /// Check if workspace name already exists for given email
+    async fn workspace_name_exists(
+        &self,
+        email: &str,
+        name: &str,
+    ) -> Result<bool, super::StorageError>;
 
     /// Get all domains in a workspace
     async fn get_domains(&self, workspace_id: Uuid)

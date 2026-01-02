@@ -30,7 +30,7 @@ impl StorageBackend for PostgresStorageBackend {
         let result = sqlx::query_as!(
             WorkspaceInfo,
             r#"
-            SELECT id, owner_id, email, created_at, updated_at
+            SELECT id, owner_id, email, name, type as workspace_type, created_at, updated_at
             FROM workspaces
             WHERE email = $1
             "#,
@@ -48,31 +48,15 @@ impl StorageBackend for PostgresStorageBackend {
         email: String,
         user_context: &UserContext,
     ) -> Result<WorkspaceInfo, StorageError> {
-        let workspace_id = Uuid::new_v4();
-        let now = Utc::now();
-
-        sqlx::query!(
-            r#"
-            INSERT INTO workspaces (id, owner_id, email, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5)
-            "#,
-            workspace_id,
-            user_context.user_id,
+        // Legacy method - creates workspace with default name based on email
+        let default_name = format!("Workspace {}", email.split('@').next().unwrap_or("default"));
+        self.create_workspace_with_details(
             email,
-            now,
-            now
+            user_context,
+            default_name,
+            "personal".to_string(),
         )
-        .execute(&self.pool)
         .await
-        .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
-
-        Ok(WorkspaceInfo {
-            id: workspace_id,
-            owner_id: user_context.user_id,
-            email,
-            created_at: now,
-            updated_at: now,
-        })
     }
 
     async fn get_domain_by_name(
@@ -473,7 +457,7 @@ impl StorageBackend for PostgresStorageBackend {
         let results = sqlx::query_as!(
             WorkspaceInfo,
             r#"
-            SELECT id, owner_id, email, created_at, updated_at
+            SELECT id, owner_id, email, name, type as workspace_type, created_at, updated_at
             FROM workspaces
             ORDER BY created_at DESC
             "#
@@ -483,6 +467,82 @@ impl StorageBackend for PostgresStorageBackend {
         .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
 
         Ok(results)
+    }
+
+    async fn get_workspaces_by_owner(
+        &self,
+        owner_id: Uuid,
+    ) -> Result<Vec<WorkspaceInfo>, StorageError> {
+        let results = sqlx::query_as!(
+            WorkspaceInfo,
+            r#"
+            SELECT id, owner_id, email, name, type as workspace_type, created_at, updated_at
+            FROM workspaces
+            WHERE owner_id = $1
+            ORDER BY created_at DESC
+            "#,
+            owner_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
+
+        Ok(results)
+    }
+
+    async fn create_workspace_with_details(
+        &self,
+        email: String,
+        user_context: &UserContext,
+        name: String,
+        workspace_type: String,
+    ) -> Result<WorkspaceInfo, StorageError> {
+        let workspace_id = Uuid::new_v4();
+        let now = Utc::now();
+
+        sqlx::query!(
+            r#"
+            INSERT INTO workspaces (id, owner_id, email, name, type, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            "#,
+            workspace_id,
+            user_context.user_id,
+            email,
+            name,
+            workspace_type,
+            now,
+            now
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
+
+        Ok(WorkspaceInfo {
+            id: workspace_id,
+            owner_id: user_context.user_id,
+            email,
+            name: Some(name),
+            workspace_type: Some(workspace_type),
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    async fn workspace_name_exists(&self, email: &str, name: &str) -> Result<bool, StorageError> {
+        let result = sqlx::query!(
+            r#"
+            SELECT COUNT(*) as count
+            FROM workspaces
+            WHERE email = $1 AND name = $2
+            "#,
+            email,
+            name
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
+
+        Ok(result.count.unwrap_or(0) > 0)
     }
 
     async fn get_domains(&self, workspace_id: Uuid) -> Result<Vec<DomainInfo>, StorageError> {

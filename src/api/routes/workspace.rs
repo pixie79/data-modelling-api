@@ -34,6 +34,31 @@ pub struct CreateWorkspaceRequest {
     domain: String,
 }
 
+/// Request for creating workspace via /api/v1/workspaces endpoint
+#[derive(Deserialize, ToSchema)]
+pub struct CreateWorkspaceV1Request {
+    name: String,
+    #[serde(rename = "type")]
+    workspace_type: String,
+}
+
+/// Response for workspace creation via /api/v1/workspaces endpoint
+#[derive(Serialize, ToSchema)]
+pub struct WorkspaceResponse {
+    id: uuid::Uuid,
+    name: String,
+    #[serde(rename = "type")]
+    workspace_type: String,
+    email: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Response for listing workspaces
+#[derive(Serialize, ToSchema)]
+pub struct WorkspacesListResponse {
+    workspaces: Vec<WorkspaceResponse>,
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct CreateWorkspaceResponse {
     workspace_path: String,
@@ -474,6 +499,287 @@ pub async fn get_workspace_info(
     }))
 }
 
+/// GET /api/v1/workspaces - List all workspaces for the authenticated user
+#[utoipa::path(
+    get,
+    path = "/api/v1/workspaces",
+    tag = "Workspace",
+    responses(
+        (status = 200, description = "List of workspaces retrieved successfully", body = WorkspacesListResponse),
+        (status = 401, description = "Unauthorized - invalid or missing token")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn list_workspaces(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<WorkspacesListResponse>, StatusCode> {
+    // Get user context from JWT token
+    let user_context = get_user_context(&state, &headers).await?;
+
+    // Get workspaces for this user
+    let workspaces: Vec<StorageWorkspaceInfo> = if let Some(storage) = state.storage.as_ref() {
+        storage
+            .get_workspaces_by_owner(user_context.user_id)
+            .await
+            .map_err(|e| {
+                warn!("Failed to get workspaces: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    } else {
+        // File-based mode - read from .workspaces.json file
+        match get_workspace_data_dir() {
+            Ok(workspace_data_dir) => {
+                let sanitized_email = sanitize_email_for_path(&user_context.email);
+                let user_workspace_base = workspace_data_dir.join(&sanitized_email);
+                let workspaces_file = user_workspace_base.join(".workspaces.json");
+
+                if workspaces_file.exists() {
+                    match std::fs::read_to_string(&workspaces_file) {
+                        Ok(content) => {
+                            let workspaces_map: HashMap<String, serde_json::Value> =
+                                serde_json::from_str(&content).unwrap_or_default();
+
+                            workspaces_map
+                                .values()
+                                .filter_map(|v| {
+                                    Some(StorageWorkspaceInfo {
+                                        id: uuid::Uuid::parse_str(v.get("id")?.as_str()?).ok()?,
+                                        owner_id: user_context.user_id,
+                                        email: v.get("email")?.as_str()?.to_string(),
+                                        name: v.get("name")?.as_str().map(|s| s.to_string()),
+                                        workspace_type: v
+                                            .get("type")?
+                                            .as_str()
+                                            .map(|s| s.to_string()),
+                                        created_at: chrono::DateTime::parse_from_rfc3339(
+                                            v.get("created_at")?.as_str()?,
+                                        )
+                                        .ok()?
+                                        .with_timezone(&chrono::Utc),
+                                        updated_at: chrono::Utc::now(), // Use current time as fallback
+                                    })
+                                })
+                                .collect()
+                        }
+                        Err(e) => {
+                            warn!("Failed to read workspaces file: {}", e);
+                            Vec::new()
+                        }
+                    }
+                } else {
+                    Vec::new()
+                }
+            }
+            Err(_) => {
+                // WORKSPACE_DATA not set - return empty list
+                Vec::new()
+            }
+        }
+    };
+
+    // Convert to response format
+    let workspace_responses: Vec<WorkspaceResponse> = workspaces
+        .into_iter()
+        .map(|w| WorkspaceResponse {
+            id: w.id,
+            name: w.name.unwrap_or_else(|| "Unnamed Workspace".to_string()),
+            workspace_type: w.workspace_type.unwrap_or_else(|| "personal".to_string()),
+            email: w.email,
+            created_at: w.created_at,
+        })
+        .collect();
+
+    Ok(Json(WorkspacesListResponse {
+        workspaces: workspace_responses,
+    }))
+}
+
+/// POST /api/v1/workspaces - Create a new workspace for the authenticated user
+#[utoipa::path(
+    post,
+    path = "/api/v1/workspaces",
+    tag = "Workspace",
+    request_body = CreateWorkspaceV1Request,
+    responses(
+        (status = 200, description = "Workspace created successfully", body = WorkspaceResponse),
+        (status = 400, description = "Bad request - validation failed"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 409, description = "Conflict - workspace name already exists for this email"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn create_workspace_v1(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<CreateWorkspaceV1Request>,
+) -> Result<Json<WorkspaceResponse>, StatusCode> {
+    // Validate request
+    let name = request.name.trim();
+    let workspace_type = request.workspace_type.trim().to_lowercase();
+
+    if name.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if workspace_type != "personal" && workspace_type != "organization" {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Get user context from JWT token
+    let user_context = get_user_context(&state, &headers).await?;
+    let email = user_context.email.clone();
+
+    // Check if workspace name already exists for this email
+    if let Some(storage) = state.storage.as_ref() {
+        let name_exists = storage
+            .workspace_name_exists(&email, name)
+            .await
+            .map_err(|e| {
+                warn!("Failed to check workspace name: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        if name_exists {
+            return Err(StatusCode::CONFLICT);
+        }
+
+        // Create workspace
+        let workspace = storage
+            .create_workspace_with_details(
+                email.clone(),
+                &user_context,
+                name.to_string(),
+                workspace_type.clone(),
+            )
+            .await
+            .map_err(|e| {
+                warn!("Failed to create workspace: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        Ok(Json(WorkspaceResponse {
+            id: workspace.id,
+            name: workspace.name.unwrap_or_else(|| name.to_string()),
+            workspace_type: workspace.workspace_type.unwrap_or(workspace_type),
+            email: workspace.email,
+            created_at: workspace.created_at,
+        }))
+    } else {
+        // File-based mode - use ModelService to create workspace
+        // Check if workspace name already exists by checking directory structure
+        let workspace_data_dir = match get_workspace_data_dir() {
+            Ok(dir) => dir,
+            Err(_) => {
+                warn!("WORKSPACE_DATA not set for file-based workspace creation");
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        let sanitized_email = sanitize_email_for_path(&email);
+        let user_workspace_base = workspace_data_dir.join(&sanitized_email);
+
+        // Ensure user workspace base directory exists
+        if let Err(e) = std::fs::create_dir_all(&user_workspace_base) {
+            warn!("Failed to create user workspace directory: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        // Check if workspace name already exists for this email
+        // Track workspace names in a JSON file: {WORKSPACE_DATA}/{email}/.workspaces.json
+        let workspaces_file = user_workspace_base.join(".workspaces.json");
+        let mut workspaces: HashMap<String, serde_json::Value> = if workspaces_file.exists() {
+            match std::fs::read_to_string(&workspaces_file) {
+                Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+                Err(e) => {
+                    warn!("Failed to read workspaces file: {}", e);
+                    HashMap::new()
+                }
+            }
+        } else {
+            HashMap::new()
+        };
+
+        // Check for duplicate workspace name
+        if workspaces.contains_key(name) {
+            return Err(StatusCode::CONFLICT);
+        }
+
+        // Create workspace directory structure using name as domain identifier
+        // Structure: {WORKSPACE_DATA}/{email}/{name}/
+        let workspace_dir = user_workspace_base.join(name);
+        let tables_dir = workspace_dir.join("tables");
+
+        if let Err(e) = std::fs::create_dir_all(&tables_dir) {
+            warn!("Failed to create workspace directory: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+
+        // Create workspace using ModelService
+        let mut model_service = state.model_service.lock().await;
+        match model_service.load_or_create_model(
+            format!("{} - {}", name, email),
+            workspace_dir.clone(),
+            Some(format!("Workspace {} for {}", name, email)),
+        ) {
+            Ok(_) => {
+                info!(
+                    "Created file-based workspace: {} for user: {} at {:?}",
+                    name, email, workspace_dir
+                );
+            }
+            Err(e) => {
+                warn!("Failed to create model in workspace: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+
+        // Generate workspace ID (deterministic based on email + name)
+        let workspace_id = uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_DNS,
+            format!("{}:{}", email, name).as_bytes(),
+        );
+
+        // Get or create user ID for file-based mode
+        let _owner_id = match get_or_create_file_user_id(&email) {
+            Ok(id) => id,
+            Err(e) => {
+                warn!("Failed to get/create user ID: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // Store workspace metadata
+        let workspace_metadata = serde_json::json!({
+            "id": workspace_id.to_string(),
+            "name": name,
+            "type": workspace_type,
+            "email": email,
+            "created_at": chrono::Utc::now().to_rfc3339(),
+            "workspace_path": workspace_dir.to_string_lossy().to_string(),
+        });
+        workspaces.insert(name.to_string(), workspace_metadata);
+
+        // Save workspace metadata
+        if let Err(e) = std::fs::write(
+            &workspaces_file,
+            serde_json::to_string_pretty(&workspaces).unwrap_or_default(),
+        ) {
+            warn!("Failed to save workspace metadata: {}", e);
+            // Continue anyway - workspace is created
+        }
+
+        Ok(Json(WorkspaceResponse {
+            id: workspace_id,
+            name: name.to_string(),
+            workspace_type: workspace_type.clone(),
+            email: email.clone(),
+            created_at: chrono::Utc::now(),
+        }))
+    }
+}
+
 /// GET /workspace/profiles - List all profiles (email/domain combinations) for the authenticated user
 #[utoipa::path(
     get,
@@ -775,6 +1081,11 @@ async fn get_or_create_workspace(
         id: workspace_id,
         owner_id: user_context.user_id,
         email: user_context.email.clone(),
+        name: Some(format!(
+            "Workspace {}",
+            user_context.email.split('@').next().unwrap_or("default")
+        )),
+        workspace_type: Some("personal".to_string()),
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     })
@@ -3321,8 +3632,10 @@ pub async fn list_cross_domain_relationships(
 ) -> Result<Json<Value>, StatusCode> {
     let ctx = ensure_domain_loaded(&state, &headers, &path.domain).await?;
 
-    // Note: Relationship cross-domain refs are not yet implemented in storage backend
-    // Fall back to file-based storage for now
+    // Note: Cross-domain relationship references use a different structure than table references.
+    // Table references (CrossDomainRef) are stored in PostgreSQL via get_cross_domain_refs().
+    // Relationship references (ImportedRelationshipInfo) are currently file-based only.
+    // This is intentional - relationship refs are managed differently and may be migrated to PostgreSQL in a future enhancement.
 
     let config_path = get_cross_domain_config_path(&ctx.user_context.email, &path.domain)?;
     let config = load_cross_domain_config(&config_path);
@@ -3358,8 +3671,10 @@ pub async fn remove_cross_domain_relationship(
     let relationship_uuid =
         Uuid::parse_str(&path.relationship_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    // Note: Relationship cross-domain refs are not yet implemented in storage backend
-    // Fall back to file-based storage for now
+    // Note: Cross-domain relationship references use a different structure than table references.
+    // Table references (CrossDomainRef) are stored in PostgreSQL via remove_cross_domain_ref().
+    // Relationship references (ImportedRelationshipInfo) are currently file-based only.
+    // This is intentional - relationship refs are managed differently and may be migrated to PostgreSQL in a future enhancement.
 
     let config_path = get_cross_domain_config_path(&ctx.user_context.email, &path.domain)?;
     let mut config = load_cross_domain_config(&config_path);

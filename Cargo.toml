@@ -1,8 +1,8 @@
 [package]
 name = "data-modelling-api"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2024"
-authors = ["Mark Olliver <mark@olliver.me.uk>"]
+authors = ["Mark Olliver <mark@opendatamodelling.com>"]
 license = "MIT"
 repository = "https://github.com/pixie79/data-modelling-api"
 description = "Data Modelling API for open data modelling based around ODCS formats"

@@ -207,10 +207,21 @@ impl SQLParser {
     /// Returns a tuple of (tables, tables_requiring_name_input).
     /// Liquibase typically has static names, so tables_requiring_name_input is usually empty.
     fn parse_liquibase(&self, sql: &str) -> Result<(Vec<Table>, Vec<TableNameInput>)> {
-        // For now, implement a basic Liquibase parser
-        // This can be extended to handle full Liquibase XML and SQL formats
+        // LIQUIBASE FORMAT PARSING LIMITATION:
+        // Liquibase format parsing is not fully implemented. The parser currently falls back
+        // to standard SQL parsing, which may not correctly handle all Liquibase-specific features
+        // such as changesets, rollback scripts, and database-specific SQL.
+        //
+        // TODO: Implement full Liquibase format support including:
+        // - Liquibase XML format parsing
+        // - Changeset extraction and processing
+        // - Database-specific SQL handling
+        // - Rollback script support
+        //
+        // For now, users should use standard SQL format or expect fallback behavior.
         warn!(
-            "Liquibase parsing is not fully implemented yet, falling back to standard SQL parsing"
+            "Liquibase parsing is not fully implemented yet, falling back to standard SQL parsing. \
+            Some Liquibase-specific features may not be parsed correctly."
         );
 
         // Try to extract CREATE TABLE statements from Liquibase SQL
