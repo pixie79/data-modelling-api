@@ -509,83 +509,84 @@ pub async fn exchange_auth_code(
     }
 
     // Handle email selection when select_email=true
-    let (tokens, selected_email, should_remove_code) = if entry.select_email && entry.emails.len() > 1 {
-        // Email selection required
-        let email = match request.email {
-            Some(e) => e.trim().to_string(),
-            None => {
-                // Return emails for selection without tokens
-                // Don't remove the code yet - allow re-exchange with email
+    let (tokens, selected_email, should_remove_code) =
+        if entry.select_email && entry.emails.len() > 1 {
+            // Email selection required
+            let email = match request.email {
+                Some(e) => e.trim().to_string(),
+                None => {
+                    // Return emails for selection without tokens
+                    // Don't remove the code yet - allow re-exchange with email
+                    drop(store);
+                    return Ok(Json(ExchangeAuthCodeResponse {
+                        access_token: String::new(),
+                        refresh_token: String::new(),
+                        access_token_expires_at: 0,
+                        refresh_token_expires_at: 0,
+                        token_type: "Bearer".to_string(),
+                        emails: entry.emails,
+                        select_email: true,
+                    }));
+                }
+            };
+
+            // Validate email is in verified emails list
+            let email_valid = entry.emails.iter().any(|e| e.email == email && e.verified);
+
+            if !email_valid {
                 drop(store);
-                return Ok(Json(ExchangeAuthCodeResponse {
-                    access_token: String::new(),
-                    refresh_token: String::new(),
-                    access_token_expires_at: 0,
-                    refresh_token_expires_at: 0,
-                    token_type: "Bearer".to_string(),
-                    emails: entry.emails,
-                    select_email: true,
-                }));
+                return Err(StatusCode::BAD_REQUEST);
+            }
+
+            // Regenerate tokens with selected email using GitHub info from TokenExchangeEntry
+            let new_tokens = auth_state
+                .jwt_service
+                .generate_token_pair(
+                    &email,
+                    entry.github_id,
+                    &entry.github_username,
+                    &entry.session_id,
+                )
+                .map_err(|e| {
+                    warn!("Failed to generate tokens with selected email: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+
+            // Update session selected_email in memory store
+            let mut sessions = auth_state.session_store.lock().await;
+            if let Some(session) = sessions.get_mut(&entry.session_id) {
+                session.selected_email = Some(email.clone());
+            }
+            drop(sessions);
+
+            // Also update database session if available
+            if let Some(db_session_store) = auth_state.app_state.db_session_store() {
+                if let Ok(session_uuid) = Uuid::parse_str(&entry.session_id) {
+                    let _ = db_session_store
+                        .update_selected_email(session_uuid, &email)
+                        .await;
+                }
+            }
+
+            (new_tokens, Some(email), true) // Remove code after successful token generation
+        } else {
+            // Auto-select primary email or use existing tokens
+            let primary_email = entry
+                .emails
+                .iter()
+                .find(|e| e.primary && e.verified)
+                .or_else(|| entry.emails.iter().find(|e| e.verified))
+                .map(|e| e.email.clone())
+                .unwrap_or_else(String::new);
+
+            if entry.select_email && entry.emails.len() == 1 {
+                // Single email - auto-select
+                (entry.tokens, Some(primary_email), true) // Remove code after successful token generation
+            } else {
+                // No selection needed - use existing tokens
+                (entry.tokens, None, true) // Remove code after successful token generation
             }
         };
-
-        // Validate email is in verified emails list
-        let email_valid = entry.emails.iter().any(|e| e.email == email && e.verified);
-
-        if !email_valid {
-            drop(store);
-            return Err(StatusCode::BAD_REQUEST);
-        }
-
-        // Regenerate tokens with selected email using GitHub info from TokenExchangeEntry
-        let new_tokens = auth_state
-            .jwt_service
-            .generate_token_pair(
-                &email,
-                entry.github_id,
-                &entry.github_username,
-                &entry.session_id,
-            )
-            .map_err(|e| {
-                warn!("Failed to generate tokens with selected email: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-
-        // Update session selected_email in memory store
-        let mut sessions = auth_state.session_store.lock().await;
-        if let Some(session) = sessions.get_mut(&entry.session_id) {
-            session.selected_email = Some(email.clone());
-        }
-        drop(sessions);
-
-        // Also update database session if available
-        if let Some(db_session_store) = auth_state.app_state.db_session_store() {
-            if let Ok(session_uuid) = Uuid::parse_str(&entry.session_id) {
-                let _ = db_session_store
-                    .update_selected_email(session_uuid, &email)
-                    .await;
-            }
-        }
-
-        (new_tokens, Some(email), true) // Remove code after successful token generation
-    } else {
-        // Auto-select primary email or use existing tokens
-        let primary_email = entry
-            .emails
-            .iter()
-            .find(|e| e.primary && e.verified)
-            .or_else(|| entry.emails.iter().find(|e| e.verified))
-            .map(|e| e.email.clone())
-            .unwrap_or_else(String::new);
-
-        if entry.select_email && entry.emails.len() == 1 {
-            // Single email - auto-select
-            (entry.tokens, Some(primary_email), true) // Remove code after successful token generation
-        } else {
-            // No selection needed - use existing tokens
-            (entry.tokens, None, true) // Remove code after successful token generation
-        }
-    };
 
     // Remove the code from store only after successful token generation
     if should_remove_code {
@@ -1213,7 +1214,10 @@ async fn select_email(
         }
 
         // Validate email is in verified emails list
-        let email_valid = entry.emails.iter().any(|e| e.email == request.email && e.verified);
+        let email_valid = entry
+            .emails
+            .iter()
+            .any(|e| e.email == request.email && e.verified);
         if !email_valid {
             drop(store);
             return Err(StatusCode::BAD_REQUEST);
@@ -1277,7 +1281,11 @@ async fn select_email(
                             return Err(StatusCode::INTERNAL_SERVER_ERROR);
                         }
 
-                        (session.github_id, session.github_username, session.emails.clone())
+                        (
+                            session.github_id,
+                            session.github_username,
+                            session.emails.clone(),
+                        )
                     }
                     Ok(None) => {
                         // Session not found in database, try in-memory fallback
@@ -1348,12 +1356,7 @@ async fn select_email(
     // Generate new tokens with the selected email as subject
     let new_tokens = auth_state
         .jwt_service
-        .generate_token_pair(
-            &request.email,
-            github_id,
-            &github_username,
-            &session_id,
-        )
+        .generate_token_pair(&request.email, github_id, &github_username, &session_id)
         .map_err(|e| {
             warn!("Failed to generate new tokens: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR

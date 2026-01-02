@@ -18,7 +18,9 @@ use utoipa::ToSchema;
 
 use super::app_state::AppState;
 use super::auth_context::AuthContext;
-use super::workspace::{get_workspace_data_dir, sanitize_email_for_path, validate_domain_name, DomainPath};
+use super::workspace::{
+    DomainPath, get_workspace_data_dir, sanitize_email_for_path, validate_domain_name,
+};
 use data_modelling_sdk::git::GitService as SdkGitService;
 
 /// Create the git sync router
@@ -80,10 +82,18 @@ pub async fn domain_get_sync_config(
     _auth: AuthContext,
 ) -> Result<Json<SyncConfigResponse>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not query)
-    get_sync_config(State(state), _auth, Query(GitStatusQuery { domain: Some(domain_path.domain) })).await
+    get_sync_config(
+        State(state),
+        _auth,
+        Query(GitStatusQuery {
+            domain: Some(domain_path.domain),
+        }),
+    )
+    .await
 }
 
 /// POST /workspace/domains/{domain}/git/config - Update sync configuration for a domain (domain-scoped)
@@ -110,8 +120,9 @@ pub async fn domain_update_sync_config(
     Json(request): Json<UpdateSyncConfigRequest>,
 ) -> Result<Json<SyncConfigResponse>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler
     update_sync_config(State(state), auth, Json(request)).await
 }
@@ -138,10 +149,18 @@ pub async fn domain_init_repository(
     auth: AuthContext,
 ) -> Result<Json<InitRepositoryResponse>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not request body)
-    init_repository(State(state), auth, Json(InitRepositoryRequest { domain: domain_path.domain })).await
+    init_repository(
+        State(state),
+        auth,
+        Json(InitRepositoryRequest {
+            domain: domain_path.domain,
+        }),
+    )
+    .await
 }
 
 /// POST /workspace/domains/{domain}/git/clone - Clone a repository for a domain (domain-scoped)
@@ -168,14 +187,20 @@ pub async fn domain_clone_repository(
     Json(request): Json<CloneRepositoryRequestWithoutDomain>,
 ) -> Result<Json<CloneRepositoryResponse>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not request body)
-    clone_repository(State(state), auth, Json(CloneRepositoryRequest {
-        repository_url: request.repository_url,
-        domain: domain_path.domain,
-        branch: request.branch,
-    })).await
+    clone_repository(
+        State(state),
+        auth,
+        Json(CloneRepositoryRequest {
+            repository_url: request.repository_url,
+            domain: domain_path.domain,
+            branch: request.branch,
+        }),
+    )
+    .await
 }
 
 /// GET /workspace/domains/{domain}/git/status - Get Git status for a domain (domain-scoped)
@@ -200,10 +225,18 @@ pub async fn domain_get_sync_status(
     auth: AuthContext,
 ) -> Result<Json<GitStatusResponse>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not query)
-    get_sync_status(State(state), auth, Query(GitStatusQuery { domain: Some(domain_path.domain) })).await
+    get_sync_status(
+        State(state),
+        auth,
+        Query(GitStatusQuery {
+            domain: Some(domain_path.domain),
+        }),
+    )
+    .await
 }
 
 /// POST /workspace/domains/{domain}/git/export - Export domain to Git repository (domain-scoped)
@@ -228,10 +261,18 @@ pub async fn domain_export_domain(
     auth: AuthContext,
 ) -> Result<Json<GitExportResult>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not request body)
-    export_domain(State(state), auth, Json(ExportDomainRequest { domain: domain_path.domain })).await
+    export_domain(
+        State(state),
+        auth,
+        Json(ExportDomainRequest {
+            domain: domain_path.domain,
+        }),
+    )
+    .await
 }
 
 /// POST /workspace/domains/{domain}/git/commit - Commit changes to Git repository (domain-scoped)
@@ -258,13 +299,19 @@ pub async fn domain_commit_changes(
     Json(request): Json<CommitRequestWithoutDomain>,
 ) -> Result<Json<CommitResponse>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not request body)
-    commit_changes(State(state), auth, Json(CommitRequest {
-        domain: domain_path.domain,
-        message: request.message,
-    })).await
+    commit_changes(
+        State(state),
+        auth,
+        Json(CommitRequest {
+            domain: domain_path.domain,
+            message: request.message,
+        }),
+    )
+    .await
 }
 
 /// POST /workspace/domains/{domain}/git/push - Push changes to remote repository (domain-scoped)
@@ -289,10 +336,18 @@ pub async fn domain_push_changes(
     auth: AuthContext,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not query)
-    push_changes(State(state), auth, Query(DomainPath { domain: domain_path.domain })).await
+    push_changes(
+        State(state),
+        auth,
+        Query(DomainPath {
+            domain: domain_path.domain,
+        }),
+    )
+    .await
 }
 
 /// POST /workspace/domains/{domain}/git/pull - Pull changes from remote repository (domain-scoped)
@@ -317,10 +372,18 @@ pub async fn domain_pull_changes(
     auth: AuthContext,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not query)
-    pull_changes(State(state), auth, Query(DomainPath { domain: domain_path.domain })).await
+    pull_changes(
+        State(state),
+        auth,
+        Query(DomainPath {
+            domain: domain_path.domain,
+        }),
+    )
+    .await
 }
 
 /// GET /workspace/domains/{domain}/git/conflicts - List Git conflicts for a domain (domain-scoped)
@@ -345,10 +408,18 @@ pub async fn domain_list_conflicts(
     auth: AuthContext,
 ) -> Result<Json<ConflictListResponse>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not query)
-    list_conflicts(State(state), auth, Query(GitStatusQuery { domain: Some(domain_path.domain) })).await
+    list_conflicts(
+        State(state),
+        auth,
+        Query(GitStatusQuery {
+            domain: Some(domain_path.domain),
+        }),
+    )
+    .await
 }
 
 /// POST /workspace/domains/{domain}/git/conflicts/resolve - Resolve a Git conflict (domain-scoped)
@@ -375,14 +446,20 @@ pub async fn domain_resolve_conflict(
     Json(request): Json<ResolveConflictRequestWithoutDomain>,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to existing handler (domain comes from path, not request body)
-    resolve_conflict(State(state), auth, Json(ResolveConflictRequest {
-        domain: domain_path.domain,
-        file_path: request.file_path,
-        resolution: request.resolution,
-    })).await
+    resolve_conflict(
+        State(state),
+        auth,
+        Json(ResolveConflictRequest {
+            domain: domain_path.domain,
+            file_path: request.file_path,
+            resolution: request.resolution,
+        }),
+    )
+    .await
 }
 
 /// Request to clone a repository (without domain - domain comes from path)

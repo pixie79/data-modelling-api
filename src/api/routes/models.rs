@@ -37,7 +37,7 @@ pub fn models_router() -> Router<AppState> {
 ///
 /// All routes require JWT authentication and domain path parameter.
 /// Routes are nested under `/workspace/domains/{domain}/export`
-/// 
+///
 /// Note: This router is not used directly - routes are added to workspace_router()
 /// to ensure domain path parameter is available.
 pub fn domain_export_router() -> Router<AppState> {
@@ -66,7 +66,7 @@ pub fn domain_export_router() -> Router<AppState> {
     security(("bearer_auth" = []))
 )]
 /// Domain-scoped export format handler
-/// 
+///
 /// This function is public so it can be called from workspace router.
 pub async fn domain_export_format(
     State(state): State<AppState>,
@@ -76,7 +76,7 @@ pub async fn domain_export_format(
 ) -> Result<Response<Body>, StatusCode> {
     // Ensure domain is loaded before exporting
     let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
-    
+
     // Delegate to the existing export handler logic
     export_format(State(state), Path(path.format), Query(query)).await
 }
@@ -97,7 +97,7 @@ pub async fn domain_export_format(
     security(("bearer_auth" = []))
 )]
 /// Domain-scoped export all handler
-/// 
+///
 /// This function is public so it can be called from workspace router.
 pub async fn domain_export_all(
     State(state): State<AppState>,
@@ -106,8 +106,9 @@ pub async fn domain_export_all(
     Query(query): Query<ExportQuery>,
 ) -> Result<Response<Body>, StatusCode> {
     // Ensure domain is loaded before exporting
-    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
-    
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
     // Delegate to the existing export handler logic
     export_all(State(state), Query(query)).await
 }

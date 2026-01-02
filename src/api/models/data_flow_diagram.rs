@@ -4,8 +4,8 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 /// Data-flow diagram model
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -54,4 +54,3 @@ pub struct UpdateDataFlowDiagramRequest {
     /// Expected version for optimistic locking
     pub expected_version: Option<i32>,
 }
-

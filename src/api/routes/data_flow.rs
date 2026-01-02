@@ -9,11 +9,11 @@ use axum::{
     response::Json,
     routing::{delete, get, put},
 };
+use serde::Deserialize;
 use serde_json::Value;
 use tracing::{error, info};
-use serde::Deserialize;
-use uuid::Uuid;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 use super::app_state::AppState;
 use super::auth_context::AuthContext;
@@ -25,7 +25,10 @@ use crate::models::data_flow_diagram::{
 /// Create the data-flow diagram router
 pub fn data_flow_router() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_data_flow_diagrams).post(create_data_flow_diagram))
+        .route(
+            "/",
+            get(list_data_flow_diagrams).post(create_data_flow_diagram),
+        )
         .route("/{diagram_id}", get(get_data_flow_diagram))
         .route("/{diagram_id}", put(update_data_flow_diagram))
         .route("/{diagram_id}", delete(delete_data_flow_diagram))
@@ -66,7 +69,10 @@ async fn list_data_flow_diagrams(
     if let Some(storage) = state.storage.as_ref() {
         match storage.get_data_flow_diagrams(ctx.domain_info.id).await {
             Ok(diagrams) => {
-                info!("Retrieved {} data-flow diagrams from PostgreSQL", diagrams.len());
+                info!(
+                    "Retrieved {} data-flow diagrams from PostgreSQL",
+                    diagrams.len()
+                );
                 return Ok(Json(diagrams));
             }
             Err(e) => {
@@ -171,8 +177,8 @@ async fn get_data_flow_diagram(
     // Ensure domain is loaded
     let ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
 
-    let diagram_id = Uuid::parse_str(&diagram_path.diagram_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let diagram_id =
+        Uuid::parse_str(&diagram_path.diagram_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Try PostgreSQL storage first
     if let Some(storage) = state.storage.as_ref() {
@@ -227,8 +233,8 @@ async fn update_data_flow_diagram(
     // Ensure domain is loaded
     let ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
 
-    let diagram_id = Uuid::parse_str(&diagram_path.diagram_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let diagram_id =
+        Uuid::parse_str(&diagram_path.diagram_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Try PostgreSQL storage first
     if let Some(storage) = state.storage.as_ref() {
@@ -291,8 +297,8 @@ async fn delete_data_flow_diagram(
     // Ensure domain is loaded
     let ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
 
-    let diagram_id = Uuid::parse_str(&diagram_path.diagram_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let diagram_id =
+        Uuid::parse_str(&diagram_path.diagram_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Try PostgreSQL storage first
     if let Some(storage) = state.storage.as_ref() {
@@ -302,7 +308,9 @@ async fn delete_data_flow_diagram(
         {
             Ok(()) => {
                 info!("Deleted data-flow diagram {} from PostgreSQL", diagram_id);
-                return Ok(Json(serde_json::json!({"message": "Data-flow diagram deleted successfully"})));
+                return Ok(Json(
+                    serde_json::json!({"message": "Data-flow diagram deleted successfully"}),
+                ));
             }
             Err(crate::storage::StorageError::NotFound { .. }) => {
                 return Err(StatusCode::NOT_FOUND);
@@ -317,4 +325,3 @@ async fn delete_data_flow_diagram(
     // File-based fallback - not implemented yet
     Err(StatusCode::NOT_IMPLEMENTED)
 }
-

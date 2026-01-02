@@ -21,9 +21,9 @@ use utoipa::ToSchema;
 
 use super::app_state::AppState;
 use super::data_flow;
+use super::git_sync;
 use super::import;
 use super::models;
-use super::git_sync;
 use crate::services::jwt_service::JwtService;
 use crate::storage::{
     StorageError,
@@ -193,12 +193,21 @@ pub fn workspace_router() -> Router<AppState> {
         // Domain-scoped import endpoints
         .nest("/domains/{domain}/import", import::domain_import_router())
         // Domain-scoped export endpoints (added directly to ensure domain path parameter is available)
-        .route("/domains/{domain}/export/{format}", get(models::domain_export_format))
-        .route("/domains/{domain}/export/all", get(models::domain_export_all))
+        .route(
+            "/domains/{domain}/export/{format}",
+            get(models::domain_export_format),
+        )
+        .route(
+            "/domains/{domain}/export/all",
+            get(models::domain_export_all),
+        )
         // Domain-scoped git sync endpoints
         .nest("/domains/{domain}/git", git_sync::domain_git_router())
         // Domain-scoped data-flow diagram endpoints
-        .nest("/domains/{domain}/data-flow-diagrams", data_flow::data_flow_router())
+        .nest(
+            "/domains/{domain}/data-flow-diagrams",
+            data_flow::data_flow_router(),
+        )
 }
 
 /// Get the workspace data directory from environment variable
@@ -1906,7 +1915,7 @@ pub struct CreateTableRequest {
 /// Result of ensuring a domain is loaded, with context for storage operations.
 #[allow(dead_code)]
 /// Context for domain operations
-/// 
+///
 /// This struct is public to allow domain-scoped handlers to access domain context.
 pub struct DomainContext {
     /// The domain info (for storage operations).
@@ -1919,7 +1928,7 @@ pub struct DomainContext {
 
 /// Helper to ensure domain is loaded for the current session.
 /// Returns the domain context for storage operations.
-/// 
+///
 /// This function is public to allow domain-scoped handlers to ensure
 /// the domain is loaded before operating on it.
 pub async fn ensure_domain_loaded(
