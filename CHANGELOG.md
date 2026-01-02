@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.2] - 2026-01-02
 
+### Changed
+
+- **deps**: Updated data-modelling-sdk from 1.0.2 to 1.1.0
+  - Updated dependency to latest SDK version
+  - No breaking changes detected, all tests pass
+
 ### Fixed
 
 - **fix(auth)**: OAuth exchange code can now be re-used for email selection

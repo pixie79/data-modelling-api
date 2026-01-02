@@ -890,9 +890,9 @@ dependencies = [
 
 [[package]]
 name = "data-modelling-sdk"
-version = "1.0.2"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dbfc6b6a11503e62f5af67c692c9600b08795c519eae10c0b3df213f11e4bd1"
+checksum = "5dddebd3732b742efcdc1f1775b3b42e1d5101fb565d3ef98f8bccfdfe8b8236"
 dependencies = [
  "anyhow",
  "async-trait",
