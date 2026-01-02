@@ -14,19 +14,74 @@ The following new queries in `src/api/storage/postgres.rs` need metadata:
 
 ## Solution
 
-Run the following to regenerate SQLX metadata:
+### Step 1: Start PostgreSQL Database
+
+You need a PostgreSQL database running. The easiest way is using Docker Compose:
 
 ```bash
-# Ensure DATABASE_URL is set and migrations are applied
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/data_modelling
-cargo sqlx migrate run
+# Start PostgreSQL using docker-compose
+docker-compose up -d postgres
 
-# Generate offline metadata
+# Wait a few seconds for PostgreSQL to be ready
+sleep 5
+
+# Verify PostgreSQL is running
+docker-compose ps
+```
+
+Alternatively, if you have PostgreSQL installed locally, ensure it's running on port 5432.
+
+### Step 2: Set Database URL and Run Migrations
+
+```bash
+# Set DATABASE_URL (matches docker-compose.yml default)
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/data_modelling
+
+# Run migrations (this includes the new workspace name/type migration)
+cargo sqlx migrate run
+```
+
+### Step 3: Generate SQLX Offline Metadata
+
+```bash
+# Generate offline metadata for all queries
 cargo sqlx prepare -- --all-features
 
-# Commit the updated .sqlx/ directory
+# Verify .sqlx/ directory was updated
+ls -la .sqlx/ | wc -l  # Should show updated file count
+```
+
+### Step 4: Commit the Updated Metadata
+
+```bash
+# Add the updated .sqlx/ directory
+git add .sqlx/
+
+# Commit the changes
+git commit -m "chore: Regenerate SQLX metadata for new workspace queries"
+
+# Push to branch
+git push
+```
+
+### Alternative: Use the Prepare Script
+
+You can also use the provided script:
+
+```bash
+# Ensure PostgreSQL is running (via docker-compose or locally)
+docker-compose up -d postgres
+
+# Set DATABASE_URL
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/data_modelling
+
+# Run the prepare script
+./scripts/prepare-sqlx.sh
+
+# Commit and push
 git add .sqlx/
 git commit -m "chore: Regenerate SQLX metadata for new workspace queries"
+git push
 ```
 
 ## CI Impact
