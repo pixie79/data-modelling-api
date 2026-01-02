@@ -662,7 +662,7 @@ pub async fn create_workspace_v1(
         Ok(Json(WorkspaceResponse {
             id: workspace.id,
             name: workspace.name.unwrap_or_else(|| name.to_string()),
-            workspace_type: workspace.workspace_type.unwrap_or_else(|| workspace_type),
+            workspace_type: workspace.workspace_type.unwrap_or(workspace_type),
             email: workspace.email,
             created_at: workspace.created_at,
         }))
@@ -708,7 +708,7 @@ pub async fn create_workspace_v1(
 
         // Create workspace directory structure using name as domain identifier
         // Structure: {WORKSPACE_DATA}/{email}/{name}/
-        let workspace_dir = user_workspace_base.join(&name);
+        let workspace_dir = user_workspace_base.join(name);
         let tables_dir = workspace_dir.join("tables");
 
         if let Err(e) = std::fs::create_dir_all(&tables_dir) {

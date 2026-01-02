@@ -563,7 +563,7 @@ pub async fn exchange_auth_code(
             .find(|e| e.primary && e.verified)
             .or_else(|| entry.emails.iter().find(|e| e.verified))
             .map(|e| e.email.clone())
-            .unwrap_or_else(|| String::new());
+            .unwrap_or_else(String::new);
 
         if entry.select_email && entry.emails.len() == 1 {
             // Single email - auto-select
