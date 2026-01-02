@@ -190,6 +190,36 @@ impl StorageBackend for FileStorageBackend {
         ))
     }
 
+    async fn get_workspaces_by_owner(
+        &self,
+        _owner_id: Uuid,
+    ) -> Result<Vec<WorkspaceInfo>, StorageError> {
+        Err(StorageError::Other(
+            "File-based storage doesn't support workspace listing by owner. Use ModelService instead."
+                .to_string(),
+        ))
+    }
+
+    async fn create_workspace_with_details(
+        &self,
+        _email: String,
+        _user_context: &UserContext,
+        _name: String,
+        _workspace_type: String,
+    ) -> Result<WorkspaceInfo, StorageError> {
+        Err(StorageError::Other(
+            "File-based storage doesn't support workspace creation with details. Use ModelService instead."
+                .to_string(),
+        ))
+    }
+
+    async fn workspace_name_exists(&self, _email: &str, _name: &str) -> Result<bool, StorageError> {
+        Err(StorageError::Other(
+            "File-based storage doesn't support workspace name checking. Use ModelService instead."
+                .to_string(),
+        ))
+    }
+
     async fn get_domains(&self, _workspace_id: Uuid) -> Result<Vec<DomainInfo>, StorageError> {
         Err(StorageError::Other(
             "File-based storage doesn't support domain listing. Use ModelService instead."

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-01-27
+
+### Added
+
+- **feat(workspaces)**: File-based storage support for POST /api/v1/workspaces
+  - Workspace creation now works in file-based mode (when DATABASE_URL is not set)
+  - Workspace name tracking via `.workspaces.json` files per user
+  - GET /api/v1/workspaces now reads from file-based storage
+  - Maintains backward compatibility with PostgreSQL mode
+
+- **feat(tests)**: Comprehensive contract test suite
+  - Implemented 15+ contract tests for API endpoint verification
+  - Tests verify response formats match expected contracts
+  - Health check, tables, relationships, import, and filter endpoints covered
+
+- **feat(docs)**: Enhanced API documentation
+  - Added health check endpoint documentation to LLM.txt and README.md
+  - Documented Liquibase format parsing limitations with clear TODO notes
+  - Improved error messages for better user guidance
+
+### Fixed
+
+- **fix(workspaces)**: Fixed POST /api/v1/workspaces returning 501 NOT_IMPLEMENTED in file-based mode
+  - Now properly creates workspaces using ModelService
+  - Validates workspace name uniqueness per email address
+  - Returns consistent response format regardless of storage backend
+
+- **fix(docs)**: Fixed missing health check endpoint documentation
+  - Added `/health` and `/api/v1/health` endpoints to LLM.txt
+  - Enhanced README.md with health check usage examples and monitoring guidance
+
+- **fix(comments)**: Clarified cross-domain relationships implementation status
+  - Updated comments to explain relationship refs vs table refs distinction
+  - Documented intentional file-based storage for relationship references
+
+### Changed
+
+- **refactor(workspaces)**: Improved file-based workspace management
+  - Uses JSON metadata files for workspace tracking
+  - Better error handling and validation
+  - Consistent behavior between PostgreSQL and file-based modes
+
 ## [1.0.1] - 2025-01-01
 
 ### Fixed
@@ -176,5 +218,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Optional HTTPS enforcement
   - Protection against open redirect vulnerabilities
 
-[Unreleased]: https://github.com/pixie79/data-modelling-api/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/pixie79/data-modelling-api/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/pixie79/data-modelling-api/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/pixie79/data-modelling-api/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/pixie79/data-modelling-api/releases/tag/v1.0.0

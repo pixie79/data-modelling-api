@@ -21,7 +21,10 @@ pub mod relationships;
 pub mod tables;
 pub mod workspace;
 
-use axum::Router;
+use axum::{
+    Router,
+    routing::{get, post},
+};
 // Re-export AppState from app_state module for backwards compatibility
 pub use app_state::AppState;
 // Legacy AppState export kept for potential backwards compatibility
@@ -56,6 +59,9 @@ pub fn create_api_router(app_state: AppState) -> Router<AppState> {
     Router::new()
         // All table/relationship operations are now under /workspace/domains/{domain}/
         .nest("/workspace", workspace::workspace_router())
+        // New /api/v1/workspaces endpoints (not nested under /workspace)
+        .route("/workspaces", get(workspace::list_workspaces))
+        .route("/workspaces", post(workspace::create_workspace_v1))
         .nest("/import", import::import_router())
         .nest("/export", drawio::drawio_router())
         .nest("/models", models::models_router())

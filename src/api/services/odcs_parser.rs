@@ -489,11 +489,24 @@ impl ODCSParser {
     }
 
     /// Parse Liquibase format (placeholder - full implementation needed).
+    ///
+    /// # LIQUIBASE FORMAT PARSING LIMITATION:
+    /// Liquibase format parsing is not currently implemented. This method returns an error
+    /// indicating that Liquibase format is not supported.
+    ///
+    /// # TODO: Future Enhancement
+    /// Full Liquibase format support should include:
+    /// - Liquibase XML format parsing
+    /// - Changeset extraction and processing
+    /// - Database-specific SQL handling
+    /// - Rollback script support
+    ///
+    /// # Workaround
+    /// Users should convert Liquibase files to standard SQL or ODCS format before importing.
     fn parse_liquibase(&self, _data: &JsonValue) -> Result<(Table, Vec<ParserError>)> {
-        // Liquibase parsing - basic structure parsing implemented
-        // Full Liquibase feature support can be extended as needed
         Err(anyhow::anyhow!(
-            "Liquibase format parsing not yet implemented"
+            "Liquibase format parsing is not yet implemented. \
+            Please convert Liquibase files to standard SQL or ODCS format before importing."
         ))
     }
 

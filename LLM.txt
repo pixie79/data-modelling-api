@@ -90,6 +90,10 @@ migrations/                  # SQLx database migrations
 
 ## API Endpoints
 
+### Health Check
+- `GET /health`: Health check endpoint (returns 200 OK if service is running)
+- `GET /api/v1/health`: Health check endpoint (API versioned path, returns 200 OK if service is running)
+
 ### Authentication
 - `GET /api/v1/auth/github/login`: Initiate GitHub OAuth login (supports redirect_uri parameter)
 - `GET /api/v1/auth/github/callback`: Handle GitHub OAuth callback

@@ -75,8 +75,20 @@ The OpenAPI specification is available at:
 
 ### Health Check
 
+The API provides health check endpoints to monitor service availability:
+
+- `GET /health`: Basic health check endpoint
+- `GET /api/v1/health`: API versioned health check endpoint
+
+Both endpoints return `200 OK` if the service is running. These endpoints are useful for:
+- Load balancer health checks
+- Monitoring and alerting systems
+- Container orchestration (Kubernetes liveness/readiness probes)
+
+Example:
 ```bash
 curl http://localhost:8081/health
+curl http://localhost:8081/api/v1/health
 ```
 
 ### Authentication

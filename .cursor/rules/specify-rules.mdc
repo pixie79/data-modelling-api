@@ -1,0 +1,29 @@
+# data-modelling-api Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2026-01-02
+
+## Active Technologies
+
+- Rust edition 2024, stable toolchain + Axum 0.8 (web framework), sqlx 0.8 (database), utoipa 4.2 (OpenAPI), tokio 1.0 (async runtime) (001-fix-missing-endpoints)
+
+## Project Structure
+
+```text
+src/
+tests/
+```
+
+## Commands
+
+cargo test [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] cargo clippy
+
+## Code Style
+
+Rust edition 2024, stable toolchain: Follow standard conventions
+
+## Recent Changes
+
+- 001-fix-missing-endpoints: Added Rust edition 2024, stable toolchain + Axum 0.8 (web framework), sqlx 0.8 (database), utoipa 4.2 (OpenAPI), tokio 1.0 (async runtime)
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->

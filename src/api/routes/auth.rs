@@ -57,6 +57,9 @@ pub struct TokenExchangeEntry {
     pub emails: Vec<GitHubEmail>,
     pub select_email: bool,
     pub expires_at: chrono::DateTime<chrono::Utc>,
+    pub github_id: u64,
+    pub github_username: String,
+    pub session_id: String,
 }
 
 #[derive(Clone, Debug)]
@@ -205,6 +208,8 @@ pub struct RefreshTokenRequest {
 #[derive(Deserialize, ToSchema)]
 pub struct ExchangeAuthCodeRequest {
     code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    email: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -225,6 +230,19 @@ pub struct RefreshTokenResponse {
     access_token_expires_at: i64,
     refresh_token_expires_at: i64,
     token_type: String,
+}
+
+/// Response for GET /api/v1/auth/me endpoint
+#[derive(Serialize, ToSchema)]
+pub struct UserInfoResponse {
+    user: UserInfo,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct UserInfo {
+    id: String,
+    name: String,
+    email: String,
 }
 
 /// Auth router state
@@ -280,6 +298,8 @@ pub fn auth_router(
         .route("/status", get(get_auth_status))
         .route("/select-email", post(select_email))
         .route("/logout", post(logout))
+        // New /api/v1/auth/me endpoint
+        .route("/me", get(get_current_user))
         .with_state(auth_state)
 }
 
@@ -473,7 +493,7 @@ pub async fn exchange_auth_code(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let entry = auth_state
+    let mut entry = auth_state
         .token_exchange_store
         .lock()
         .await
@@ -487,14 +507,85 @@ pub async fn exchange_auth_code(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    // Handle email selection when select_email=true
+    let (tokens, selected_email) = if entry.select_email && entry.emails.len() > 1 {
+        // Email selection required
+        let email = match request.email {
+            Some(e) => e.trim().to_string(),
+            None => {
+                // Return emails for selection without tokens
+                return Ok(Json(ExchangeAuthCodeResponse {
+                    access_token: String::new(),
+                    refresh_token: String::new(),
+                    access_token_expires_at: 0,
+                    refresh_token_expires_at: 0,
+                    token_type: "Bearer".to_string(),
+                    emails: entry.emails,
+                    select_email: true,
+                }));
+            }
+        };
+
+        // Validate email is in verified emails list
+        let email_valid = entry.emails.iter().any(|e| e.email == email && e.verified);
+
+        if !email_valid {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+
+        // Regenerate tokens with selected email using GitHub info from TokenExchangeEntry
+        let new_tokens = auth_state
+            .jwt_service
+            .generate_token_pair(
+                &email,
+                entry.github_id,
+                &entry.github_username,
+                &entry.session_id,
+            )
+            .map_err(|e| {
+                warn!("Failed to generate tokens with selected email: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        // Update session selected_email in memory store
+        // Note: Database sessions are updated via separate endpoint, so we only update in-memory here
+        let mut sessions = auth_state.session_store.lock().await;
+        if let Some(session) = sessions.get_mut(&entry.session_id) {
+            session.selected_email = Some(email.clone());
+        }
+
+        (new_tokens, Some(email))
+    } else {
+        // Auto-select primary email or use existing tokens
+        let primary_email = entry
+            .emails
+            .iter()
+            .find(|e| e.primary && e.verified)
+            .or_else(|| entry.emails.iter().find(|e| e.verified))
+            .map(|e| e.email.clone())
+            .unwrap_or_else(|| String::new());
+
+        if entry.select_email && entry.emails.len() == 1 {
+            // Single email - auto-select
+            (entry.tokens, Some(primary_email))
+        } else {
+            // No selection needed - use existing tokens
+            (entry.tokens, None)
+        }
+    };
+
     Ok(Json(ExchangeAuthCodeResponse {
-        access_token: entry.tokens.access_token,
-        refresh_token: entry.tokens.refresh_token,
-        access_token_expires_at: entry.tokens.access_token_expires_at,
-        refresh_token_expires_at: entry.tokens.refresh_token_expires_at,
-        token_type: entry.tokens.token_type,
-        emails: entry.emails,
-        select_email: entry.select_email,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        access_token_expires_at: tokens.access_token_expires_at,
+        refresh_token_expires_at: tokens.refresh_token_expires_at,
+        token_type: tokens.token_type,
+        emails: if selected_email.is_some() {
+            Vec::new() // Don't return emails if already selected
+        } else {
+            entry.emails
+        },
+        select_email: selected_email.is_none() && entry.select_email,
     }))
 }
 
@@ -766,6 +857,9 @@ pub async fn handle_github_callback(
                 emails: emails.clone(),
                 select_email: emails.len() > 1,
                 expires_at: chrono::Utc::now() + chrono::Duration::minutes(2),
+                github_id,
+                github_username: username.clone(),
+                session_id: session_id.clone(),
             },
         );
 
@@ -980,6 +1074,86 @@ pub async fn get_auth_status(
         emails: Vec::new(),
         selected_email: None,
         token_expires_at: None,
+    }))
+}
+
+/// GET /api/v1/auth/me - Get current authenticated user information
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/me",
+    tag = "Authentication",
+    responses(
+        (status = 200, description = "User information retrieved successfully", body = UserInfoResponse),
+        (status = 401, description = "Unauthorized - invalid or missing token")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn get_current_user(
+    State(auth_state): State<AuthState>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<UserInfoResponse>, StatusCode> {
+    // Extract and validate token
+    let claims = extract_and_validate_token(&auth_state, &headers)
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Check if session is revoked
+    let revoked = auth_state.revoked_tokens.lock().await;
+    if revoked.contains(&claims.session_id) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    drop(revoked);
+
+    // Get session to extract user information
+    let session_uuid = match Uuid::parse_str(&claims.session_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    // Try database session first, then in-memory
+    let (github_username, email) =
+        if let Some(db_session_store) = auth_state.app_state.db_session_store() {
+            match db_session_store.get_session(session_uuid).await {
+                Ok(Some(session)) => {
+                    // Check if session is valid
+                    if session.revoked_at.is_some() || session.expires_at < chrono::Utc::now() {
+                        return Err(StatusCode::UNAUTHORIZED);
+                    }
+                    let email = session.selected_email.unwrap_or_else(|| claims.sub.clone());
+                    (session.github_username, email)
+                }
+                _ => {
+                    // Fall back to JWT claims
+                    (claims.github_username.clone(), claims.sub.clone())
+                }
+            }
+        } else {
+            // In-memory session
+            let sessions = auth_state.session_store.lock().await;
+            if let Some(session) = sessions.get(&claims.session_id) {
+                if session.revoked_at.is_some() || session.expires_at < chrono::Utc::now() {
+                    return Err(StatusCode::UNAUTHORIZED);
+                }
+                let email = session
+                    .selected_email
+                    .clone()
+                    .unwrap_or_else(|| claims.sub.clone());
+                (session.github_username.clone(), email)
+            } else {
+                // Fall back to JWT claims
+                (claims.github_username.clone(), claims.sub.clone())
+            }
+        };
+
+    // Generate user ID from email (consistent with existing pattern)
+    let user_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_DNS, email.as_bytes());
+
+    Ok(Json(UserInfoResponse {
+        user: UserInfo {
+            id: user_id.to_string(),
+            name: github_username,
+            email,
+        },
     }))
 }
 
