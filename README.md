@@ -52,8 +52,12 @@ sqlx migrate run
 
 5. Run the API:
 ```bash
-cargo run --bin api
+# Use SQLX_OFFLINE=true to avoid database connection during compilation
+# (matches CI/CD behavior - uses pre-generated query metadata)
+SQLX_OFFLINE=true cargo run --bin api
 ```
+
+**Note:** If you don't set `SQLX_OFFLINE=true`, SQLx will try to verify queries against your database at compile time. Ensure your database schema matches the migrations, or use offline mode (recommended).
 
 The API will be available at `http://localhost:8081`
 
@@ -165,8 +169,14 @@ git commit -m "Add sqlx offline metadata"
 
 **Normal development (no database required after metadata is generated):**
 ```bash
-# Build with offline mode (automatic if .sqlx exists)
+# Set SQLX_OFFLINE=true to use pre-generated metadata (recommended)
+export SQLX_OFFLINE=true
+
+# Build with offline mode
 cargo build
+
+# Run with offline mode
+cargo run --bin api
 
 # Or explicitly set it
 export SQLX_OFFLINE=true
