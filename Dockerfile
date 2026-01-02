@@ -1,7 +1,8 @@
 # Multi-stage build for data-modelling-api
 
 # Build stage
-FROM rust:1.75-slim AS builder
+# Using nightly for Rust 2024 edition support
+FROM rustlang/rust:nightly-slim AS builder
 
 WORKDIR /app
 
@@ -15,11 +16,19 @@ RUN apt-get update && apt-get install -y \
 # Copy manifests
 COPY Cargo.toml Cargo.lock ./
 
+# Copy SQLX offline metadata directory (required for offline builds)
+# Generate it first with: cargo sqlx prepare -- --all-features
+# If .sqlx doesn't exist, the build will fail - this is intentional to ensure
+# SQLX queries are validated before deployment
+COPY .sqlx ./.sqlx
+
 # Copy source code
 COPY src ./src
 COPY migrations ./migrations
 
-# Build the application
+# Build the application with SQLX offline mode
+# This requires .sqlx directory to be present (generated via cargo sqlx prepare)
+ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin api
 
 # Runtime stage

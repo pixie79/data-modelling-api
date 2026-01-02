@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+
+- **refactor(api)**: Domain-scoped resource migration plan created
+  - Comprehensive migration plan for moving all resources to domain-scoped endpoints
+  - Import, export, git sync, and data-flow diagram endpoints to be migrated
+  - See `specs/003-domain-scoped-migration/plan.md` for full details
+  - Migration will ensure consistency with domain-scoped storage model
+
+### Changed
+
+- **refactor(data-flow)**: Data-flow diagrams now stored at domain level
+  - Data-flow diagrams are now stored as `data-flow.yaml` in each domain folder
+  - Updated folder structure: `workspace-folder/domain-canvas-1/data-flow.yaml`
+  - Diagrams are now associated with their domain (domain_id is set)
+  - Aligns with domain-scoped relationships and the concept that data-flow diagrams link to conceptual tables
+  - Note: API endpoints remain workspace-level (`/api/v1/workspaces/{workspace_id}/data-flow-diagrams`) for now; offline mode uses domain-scoped storage
+
+## [1.1.2] - 2026-01-02
+
+### Fixed
+
+- **fix(auth)**: OAuth exchange code can now be re-used for email selection
+  - Fixed API design issue where session code could only be exchanged once
+  - Exchange code is now only removed after successful token generation
+  - If email selection is needed, code can be re-exchanged with email parameter
+  - Added support for `/auth/select-email` to accept exchange code as alternative to Bearer token
+  - This allows email selection when initial exchange returns empty tokens with `select_email=true`
+  - Fixes issue where multi-email users couldn't complete authentication flow
+
+- **fix(migration)**: Fixed data-flow diagrams migration foreign key reference
+  - Removed non-existent `users` table foreign key constraint
+  - Updated to use `user_id` UUID directly (consistent with other tables like `audit_entries`)
+
+- **fix(docker)**: Fixed Docker build for Rust 2024 edition
+  - Updated Dockerfile to use `rustlang/rust:nightly-slim` base image
+  - Added proper handling of SQLX offline metadata in Docker build
+  - Created `DOCKER_BUILD.md` documentation for build prerequisites
+
 ## [1.1.1] - 2026-01-02
 
 ### Fixed

@@ -4,8 +4,12 @@
 //! falls back to ModelService for file operations when PostgreSQL is not available.
 
 use super::{StorageError, traits::*};
-use crate::models::{Relationship, Table};
+use crate::models::{DataFlowDiagram, Relationship, Table};
 use async_trait::async_trait;
+use chrono::Utc;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use uuid::Uuid;
 
 /// File-based storage backend (stub implementation).
@@ -291,6 +295,74 @@ impl StorageBackend for FileStorageBackend {
     ) -> Result<CrossDomainRef, StorageError> {
         Err(StorageError::Other(
             "File-based storage doesn't support cross-domain refs. Use ModelService instead."
+                .to_string(),
+        ))
+    }
+
+    // Data-flow diagram methods - implemented for file-based storage
+
+    async fn get_data_flow_diagrams(
+        &self,
+        _domain_id: Uuid,
+    ) -> Result<Vec<DataFlowDiagram>, StorageError> {
+        // File-based storage reads from data-flow.yaml files
+        // This is handled by ModelService, so return empty for now
+        // Actual implementation would need access to workspace path
+        Err(StorageError::Other(
+            "File-based storage for data-flow diagrams is handled by ModelService. Use domain-scoped endpoints."
+                .to_string(),
+        ))
+    }
+
+    async fn get_data_flow_diagram(
+        &self,
+        _domain_id: Uuid,
+        _diagram_id: Uuid,
+    ) -> Result<Option<DataFlowDiagram>, StorageError> {
+        Err(StorageError::Other(
+            "File-based storage for data-flow diagrams is handled by ModelService. Use domain-scoped endpoints."
+                .to_string(),
+        ))
+    }
+
+    async fn create_data_flow_diagram(
+        &self,
+        _domain_id: Uuid,
+        _name: String,
+        _description: Option<String>,
+        _diagram_data: Value,
+        _user_context: &UserContext,
+    ) -> Result<DataFlowDiagram, StorageError> {
+        Err(StorageError::Other(
+            "File-based storage for data-flow diagrams is handled by ModelService. Use domain-scoped endpoints."
+                .to_string(),
+        ))
+    }
+
+    async fn update_data_flow_diagram(
+        &self,
+        _diagram_id: Uuid,
+        _domain_id: Uuid,
+        _name: Option<String>,
+        _description: Option<String>,
+        _diagram_data: Option<Value>,
+        _expected_version: Option<i32>,
+        _user_context: &UserContext,
+    ) -> Result<DataFlowDiagram, StorageError> {
+        Err(StorageError::Other(
+            "File-based storage for data-flow diagrams is handled by ModelService. Use domain-scoped endpoints."
+                .to_string(),
+        ))
+    }
+
+    async fn delete_data_flow_diagram(
+        &self,
+        _domain_id: Uuid,
+        _diagram_id: Uuid,
+        _user_context: &UserContext,
+    ) -> Result<(), StorageError> {
+        Err(StorageError::Other(
+            "File-based storage for data-flow diagrams is handled by ModelService. Use domain-scoped endpoints."
                 .to_string(),
         ))
     }

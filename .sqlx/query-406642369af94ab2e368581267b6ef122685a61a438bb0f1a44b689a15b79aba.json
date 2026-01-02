@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO data_flow_diagrams (id, domain_id, name, description, diagram_data, version, created_by, created_at, updated_at)\n            VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Text",
+        "Jsonb",
+        "Uuid",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "406642369af94ab2e368581267b6ef122685a61a438bb0f1a44b689a15b79aba"
+}

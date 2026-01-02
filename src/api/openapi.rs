@@ -122,7 +122,7 @@ use utoipa::{Modify, OpenApi};
     info(
         title = "Data Modelling API",
         description = "REST API for data modeling, schema management, and collaboration",
-        version = "1.1.0",
+        version = "1.1.2",
         contact(
             name = "API Support",
             email = "mark@opendatamodelling.com"

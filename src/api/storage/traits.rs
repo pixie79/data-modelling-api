@@ -1,6 +1,6 @@
 //! Storage trait definitions for the API storage backends.
 
-use crate::models::{Relationship, Table};
+use crate::models::{DataFlowDiagram, Relationship, Table};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -239,6 +239,51 @@ pub trait StorageBackend: Send + Sync {
         position: Option<PositionExport>,
         notes: Option<String>,
     ) -> Result<CrossDomainRef, super::StorageError>;
+
+    // Data-flow diagram methods
+
+    /// Get all data-flow diagrams for a domain
+    async fn get_data_flow_diagrams(
+        &self,
+        domain_id: Uuid,
+    ) -> Result<Vec<DataFlowDiagram>, super::StorageError>;
+
+    /// Get a data-flow diagram by ID
+    async fn get_data_flow_diagram(
+        &self,
+        domain_id: Uuid,
+        diagram_id: Uuid,
+    ) -> Result<Option<DataFlowDiagram>, super::StorageError>;
+
+    /// Create a new data-flow diagram
+    async fn create_data_flow_diagram(
+        &self,
+        domain_id: Uuid,
+        name: String,
+        description: Option<String>,
+        diagram_data: serde_json::Value,
+        user_context: &UserContext,
+    ) -> Result<DataFlowDiagram, super::StorageError>;
+
+    /// Update a data-flow diagram with optimistic locking
+    async fn update_data_flow_diagram(
+        &self,
+        diagram_id: Uuid,
+        domain_id: Uuid,
+        name: Option<String>,
+        description: Option<String>,
+        diagram_data: Option<serde_json::Value>,
+        expected_version: Option<i32>,
+        user_context: &UserContext,
+    ) -> Result<DataFlowDiagram, super::StorageError>;
+
+    /// Delete a data-flow diagram
+    async fn delete_data_flow_diagram(
+        &self,
+        domain_id: Uuid,
+        diagram_id: Uuid,
+        user_context: &UserContext,
+    ) -> Result<(), super::StorageError>;
 }
 
 /// Cross-domain reference information
