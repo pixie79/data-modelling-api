@@ -1,12 +1,10 @@
 //! Model export routes.
 
 use axum::{
-    Router,
     body::Body,
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::Response,
-    routing::get,
 };
 use serde::Deserialize;
 use serde_json::json;
