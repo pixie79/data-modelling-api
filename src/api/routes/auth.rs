@@ -493,7 +493,7 @@ pub async fn exchange_auth_code(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let mut entry = auth_state
+    let entry = auth_state
         .token_exchange_store
         .lock()
         .await
