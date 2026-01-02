@@ -7,11 +7,11 @@ pub mod app_state;
 pub mod audit;
 pub mod auth;
 pub mod auth_context;
+pub mod data_flow;
 pub mod error;
 // DrawIO routes - uses crate::drawio from lib.rs
 pub mod collaboration;
 pub mod collaboration_sessions;
-pub mod drawio;
 pub mod git_sync;
 pub mod import;
 pub mod models;
@@ -62,9 +62,7 @@ pub fn create_api_router(app_state: AppState) -> Router<AppState> {
         // New /api/v1/workspaces endpoints (not nested under /workspace)
         .route("/workspaces", get(workspace::list_workspaces))
         .route("/workspaces", post(workspace::create_workspace_v1))
-        .nest("/import", import::import_router())
-        .nest("/export", drawio::drawio_router())
-        .nest("/models", models::models_router())
+        // Legacy endpoints removed - all operations are now domain-scoped under /workspace/domains/{domain}/
         .nest(
             "/auth",
             auth::auth_router(
@@ -79,7 +77,6 @@ pub fn create_api_router(app_state: AppState) -> Router<AppState> {
             collaboration_sessions::collaboration_sessions_router(),
         )
         .nest("/audit", audit::audit_router())
-        .nest("/git", git_sync::git_sync_router())
         .merge(collaboration::collaboration_router())
         // OpenAPI documentation endpoints
         .merge(openapi::openapi_router())

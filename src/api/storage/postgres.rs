@@ -3,7 +3,7 @@
 //! Uses sqlx for database operations and implements the StorageBackend trait.
 
 use super::{StorageError, traits::*};
-use crate::models::{Relationship, Table};
+use crate::models::{DataFlowDiagram, Relationship, Table};
 use async_trait::async_trait;
 use chrono::Utc;
 use sqlx::PgPool;
@@ -832,5 +832,222 @@ impl StorageBackend for PostgresStorageBackend {
             position,
             notes: row.notes,
         })
+    }
+
+    // Data-flow diagram methods
+
+    async fn get_data_flow_diagrams(
+        &self,
+        domain_id: Uuid,
+    ) -> Result<Vec<DataFlowDiagram>, StorageError> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, domain_id, name, description, diagram_data, version, created_by, created_at, updated_at
+            FROM data_flow_diagrams
+            WHERE domain_id = $1
+            ORDER BY created_at DESC
+            "#,
+            domain_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| DataFlowDiagram {
+                id: row.id,
+                domain_id: row.domain_id,
+                name: row.name,
+                description: row.description,
+                diagram_data: row.diagram_data,
+                version: row.version,
+                created_by: row.created_by,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+            })
+            .collect())
+    }
+
+    async fn get_data_flow_diagram(
+        &self,
+        domain_id: Uuid,
+        diagram_id: Uuid,
+    ) -> Result<Option<DataFlowDiagram>, StorageError> {
+        let row = sqlx::query!(
+            r#"
+            SELECT id, domain_id, name, description, diagram_data, version, created_by, created_at, updated_at
+            FROM data_flow_diagrams
+            WHERE id = $1 AND domain_id = $2
+            "#,
+            diagram_id,
+            domain_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
+
+        Ok(row.map(|r| DataFlowDiagram {
+            id: r.id,
+            domain_id: r.domain_id,
+            name: r.name,
+            description: r.description,
+            diagram_data: r.diagram_data,
+            version: r.version,
+            created_by: r.created_by,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        }))
+    }
+
+    async fn create_data_flow_diagram(
+        &self,
+        domain_id: Uuid,
+        name: String,
+        description: Option<String>,
+        diagram_data: serde_json::Value,
+        user_context: &UserContext,
+    ) -> Result<DataFlowDiagram, StorageError> {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+
+        sqlx::query!(
+            r#"
+            INSERT INTO data_flow_diagrams (id, domain_id, name, description, diagram_data, version, created_by, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8)
+            "#,
+            id,
+            domain_id,
+            name,
+            description,
+            diagram_data,
+            user_context.user_id,
+            now,
+            now
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("unique") {
+                StorageError::Other(format!(
+                    "A diagram with name '{}' already exists in this domain",
+                    name
+                ))
+            } else {
+                StorageError::ConnectionError(e.to_string())
+            }
+        })?;
+
+        Ok(DataFlowDiagram {
+            id,
+            domain_id,
+            name,
+            description,
+            diagram_data,
+            version: 1,
+            created_by: user_context.user_id,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    async fn update_data_flow_diagram(
+        &self,
+        diagram_id: Uuid,
+        domain_id: Uuid,
+        name: Option<String>,
+        description: Option<String>,
+        diagram_data: Option<serde_json::Value>,
+        expected_version: Option<i32>,
+        _user_context: &UserContext,
+    ) -> Result<DataFlowDiagram, StorageError> {
+        // Check if diagram exists and verify version if provided
+        let current = self
+            .get_data_flow_diagram(domain_id, diagram_id)
+            .await?
+            .ok_or_else(|| StorageError::NotFound {
+                entity_type: "data_flow_diagram".to_string(),
+                entity_id: diagram_id.to_string(),
+            })?;
+
+        if let Some(expected) = expected_version
+            && current.version != expected
+        {
+            return Err(StorageError::VersionConflict {
+                entity_type: "data_flow_diagram".to_string(),
+                entity_id: diagram_id.to_string(),
+                expected_version: expected,
+                current_version: current.version,
+                current_data: Some(serde_json::to_value(&current).unwrap_or_default()),
+            });
+        }
+
+        let new_version = current.version + 1;
+        let new_name = name.unwrap_or(current.name);
+        let new_description = description.or(current.description);
+        let new_diagram_data = diagram_data.unwrap_or(current.diagram_data);
+        let now = Utc::now();
+
+        sqlx::query!(
+            r#"
+            UPDATE data_flow_diagrams
+            SET name = $1,
+                description = $2,
+                diagram_data = $3,
+                version = $4,
+                updated_at = $5
+            WHERE id = $6 AND domain_id = $7
+            "#,
+            new_name,
+            new_description,
+            new_diagram_data,
+            new_version,
+            now,
+            diagram_id,
+            domain_id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
+
+        Ok(DataFlowDiagram {
+            id: diagram_id,
+            domain_id,
+            name: new_name,
+            description: new_description,
+            diagram_data: new_diagram_data,
+            version: new_version,
+            created_by: current.created_by,
+            created_at: current.created_at,
+            updated_at: now,
+        })
+    }
+
+    async fn delete_data_flow_diagram(
+        &self,
+        domain_id: Uuid,
+        diagram_id: Uuid,
+        _user_context: &UserContext,
+    ) -> Result<(), StorageError> {
+        let result = sqlx::query!(
+            r#"
+            DELETE FROM data_flow_diagrams
+            WHERE id = $1 AND domain_id = $2
+            "#,
+            diagram_id,
+            domain_id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            return Err(StorageError::NotFound {
+                entity_type: "data_flow_diagram".to_string(),
+                entity_id: diagram_id.to_string(),
+            });
+        }
+
+        Ok(())
     }
 }

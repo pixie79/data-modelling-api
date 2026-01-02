@@ -8,8 +8,8 @@
 
 use axum::{
     Router,
-    extract::{Multipart, State},
-    http::StatusCode,
+    extract::{Multipart, Path, State},
+    http::{HeaderMap, StatusCode},
     response::Json,
     routing::post,
 };
@@ -19,8 +19,8 @@ use std::collections::HashMap;
 use tracing::{error, info, warn};
 use utoipa::ToSchema;
 
+use super::app_state::AppState;
 use super::auth_context::AuthContext;
-use super::tables::AppState;
 use crate::models::Table;
 use crate::services::{AvroParser, JSONSchemaParser, ODCSParser, ProtobufParser, SQLParser};
 
@@ -167,19 +167,20 @@ pub struct ODCLTextImportRequest {
     pub filename: Option<String>,
 }
 
-/// Create the import router
+/// Create the domain-scoped import router
 ///
-/// All routes require JWT authentication.
-pub fn import_router() -> Router<AppState> {
+/// All routes require JWT authentication and domain path parameter.
+/// Routes are nested under `/workspace/domains/{domain}/import`
+pub fn domain_import_router() -> Router<AppState> {
     Router::new()
         // ODCS v3.1.0 (primary) and legacy ODCL (deprecated, support ends 31/12/26)
-        .route("/odcl", post(import_odcl)) // Legacy endpoint name kept for backward compatibility
-        .route("/odcl/text", post(import_odcl_text)) // Legacy endpoint name kept for backward compatibility
-        .route("/sql", post(import_sql))
-        .route("/sql/text", post(import_sql_text))
-        .route("/avro", post(import_avro))
-        .route("/json-schema", post(import_json_schema))
-        .route("/protobuf", post(import_protobuf))
+        .route("/odcl", post(domain_import_odcl))
+        .route("/odcl/text", post(domain_import_odcl_text))
+        .route("/sql", post(domain_import_sql))
+        .route("/sql/text", post(domain_import_sql_text))
+        .route("/avro", post(domain_import_avro))
+        .route("/json-schema", post(domain_import_json_schema))
+        .route("/protobuf", post(domain_import_protobuf))
 }
 
 /// POST /import/odcl - Import tables from ODCS/ODCL file
@@ -1696,4 +1697,223 @@ async fn import_protobuf(
         "ai_suggestions": json!([]),
         "errors": errors_json
     })))
+}
+
+// Domain-scoped import handlers - use ensure_domain_loaded() to load domain before importing
+
+/// POST /workspace/domains/{domain}/import/odcl - Import tables from ODCS/ODCL file (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/import/odcl",
+    tag = "Import",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body(content = Multipart, description = "ODCS/ODCL YAML file"),
+    responses(
+        (status = 200, description = "ODCS/ODCL file imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid file or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn domain_import_odcl(
+    State(state): State<AppState>,
+    Path(path): Path<super::workspace::DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    #[allow(unused_mut)] mut multipart: Multipart,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded before importing
+    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
+
+    // Delegate to the existing import handler logic
+    import_odcl(State(state), auth, multipart).await
+}
+
+/// POST /workspace/domains/{domain}/import/odcl/text - Import tables from ODCS/ODCL text (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/import/odcl/text",
+    tag = "Import",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body(content = ODCLTextImportRequest, description = "ODCS/ODCL YAML text"),
+    responses(
+        (status = 200, description = "ODCS/ODCL text imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid text or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn domain_import_odcl_text(
+    State(state): State<AppState>,
+    Path(path): Path<super::workspace::DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    Json(request): Json<ODCLTextImportRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded before importing
+    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
+
+    // Delegate to the existing import handler logic
+    import_odcl_text(State(state), auth, Json(request)).await
+}
+
+/// POST /workspace/domains/{domain}/import/sql - Import tables from SQL file (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/import/sql",
+    tag = "Import",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body(content = Multipart, description = "SQL file"),
+    responses(
+        (status = 200, description = "SQL file imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid file or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn domain_import_sql(
+    State(state): State<AppState>,
+    Path(path): Path<super::workspace::DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    #[allow(unused_mut)] mut multipart: Multipart,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded before importing
+    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
+
+    // Delegate to the existing import handler logic
+    import_sql(State(state), auth, multipart).await
+}
+
+/// POST /workspace/domains/{domain}/import/sql/text - Import tables from SQL text (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/import/sql/text",
+    tag = "Import",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body(content = SQLTextImportRequest, description = "SQL text"),
+    responses(
+        (status = 200, description = "SQL text imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid text or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn domain_import_sql_text(
+    State(state): State<AppState>,
+    Path(path): Path<super::workspace::DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    Json(request): Json<SQLTextImportRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded before importing
+    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
+
+    // Delegate to the existing import handler logic
+    import_sql_text(State(state), auth, Json(request)).await
+}
+
+/// POST /workspace/domains/{domain}/import/avro - Import tables from Avro schema (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/import/avro",
+    tag = "Import",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body(content = Multipart, description = "Avro schema file"),
+    responses(
+        (status = 200, description = "Avro schema imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid file or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn domain_import_avro(
+    State(state): State<AppState>,
+    Path(path): Path<super::workspace::DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    #[allow(unused_mut)] mut multipart: Multipart,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded before importing
+    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
+
+    // Delegate to the existing import handler logic
+    import_avro(State(state), auth, multipart).await
+}
+
+/// POST /workspace/domains/{domain}/import/json-schema - Import tables from JSON Schema (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/import/json-schema",
+    tag = "Import",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body(content = Multipart, description = "JSON Schema file"),
+    responses(
+        (status = 200, description = "JSON Schema imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid file or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn domain_import_json_schema(
+    State(state): State<AppState>,
+    Path(path): Path<super::workspace::DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    #[allow(unused_mut)] mut multipart: Multipart,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded before importing
+    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
+
+    // Delegate to the existing import handler logic
+    import_json_schema(State(state), auth, multipart).await
+}
+
+/// POST /workspace/domains/{domain}/import/protobuf - Import tables from Protobuf schema (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/import/protobuf",
+    tag = "Import",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body(content = Multipart, description = "Protobuf schema file"),
+    responses(
+        (status = 200, description = "Protobuf schema imported successfully", body = Object),
+        (status = 400, description = "Bad request - invalid file or format"),
+        (status = 401, description = "Unauthorized - invalid or missing token"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn domain_import_protobuf(
+    State(state): State<AppState>,
+    Path(path): Path<super::workspace::DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    #[allow(unused_mut)] mut multipart: Multipart,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded before importing
+    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
+
+    // Delegate to the existing import handler logic
+    import_protobuf(State(state), auth, multipart).await
 }

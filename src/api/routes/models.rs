@@ -1,12 +1,10 @@
 //! Model export routes.
 
 use axum::{
-    Router,
     body::Body,
     extract::{Path, Query, State},
-    http::{HeaderValue, StatusCode, header},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::Response,
-    routing::get,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -19,18 +17,81 @@ use crate::services::export_service::ExportService;
 use std::path::Path as StdPath;
 
 #[derive(Deserialize, ToSchema)]
-struct ExportQuery {
-    table_ids: Option<Vec<String>>,
-    dialect: Option<String>,     // For SQL export
-    format: Option<String>, // For ODCS export (odcs_v3_1_0, odcl_v3_legacy, datacontract, simple)
-    schema_type: Option<String>, // For schema export: json_schema, avro, protobuf
+pub struct ExportQuery {
+    pub table_ids: Option<Vec<String>>,
+    pub dialect: Option<String>,     // For SQL export
+    pub format: Option<String>, // For ODCS export (odcs_v3_1_0, odcl_v3_legacy, datacontract, simple)
+    pub schema_type: Option<String>, // For schema export: json_schema, avro, protobuf
 }
 
-/// Create the models export router
-pub fn models_router() -> Router<AppState> {
-    Router::new()
-        .route("/export/{format}", get(export_format))
-        .route("/export/all", get(export_all))
+// Legacy routers removed - all export routes are now domain-scoped
+// and added directly to workspace_router() to ensure domain path parameter is available
+
+// Domain-scoped export handlers - use ensure_domain_loaded() to load domain before exporting
+
+/// GET /workspace/domains/{domain}/export/{format} - Export domain model to specified format (domain-scoped)
+#[utoipa::path(
+    get,
+    path = "/workspace/domains/{domain}/export/{format}",
+    tag = "Export",
+    params(
+        ("domain" = String, Path, description = "Domain name"),
+        ("format" = String, Path, description = "Export format: json_schema, avro, protobuf, sql, odcl, png")
+    ),
+    responses(
+        (status = 200, description = "Model exported successfully", content_type = "application/octet-stream"),
+        (status = 400, description = "Bad request - invalid format"),
+        (status = 404, description = "Model not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+/// Domain-scoped export format handler
+///
+/// This function is public so it can be called from workspace router.
+pub async fn domain_export_format(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(path): Path<super::workspace::DomainExportPath>,
+    Query(query): Query<ExportQuery>,
+) -> Result<Response<Body>, StatusCode> {
+    // Ensure domain is loaded before exporting
+    let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
+
+    // Delegate to the existing export handler logic
+    export_format(State(state), Path(path.format), Query(query)).await
+}
+
+/// GET /workspace/domains/{domain}/export/all - Export domain model to all formats as ZIP (domain-scoped)
+#[utoipa::path(
+    get,
+    path = "/workspace/domains/{domain}/export/all",
+    tag = "Export",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    responses(
+        (status = 200, description = "Model exported to all formats as ZIP", content_type = "application/zip"),
+        (status = 404, description = "Model not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+/// Domain-scoped export all handler
+///
+/// This function is public so it can be called from workspace router.
+pub async fn domain_export_all(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(domain_path): Path<super::workspace::DomainPath>,
+    Query(query): Query<ExportQuery>,
+) -> Result<Response<Body>, StatusCode> {
+    // Ensure domain is loaded before exporting
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to the existing export handler logic
+    export_all(State(state), Query(query)).await
 }
 
 /// GET /export/:format - Export model to specified format

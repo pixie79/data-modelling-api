@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM data_flow_diagrams\n            WHERE id = $1 AND domain_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "442f731b94c3102e4a6e3444962c97413fb59e3a33fbafe1bdde2e3f3a764f25"
+}

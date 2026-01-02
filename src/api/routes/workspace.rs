@@ -20,6 +20,10 @@ use tracing::{info, warn};
 use utoipa::ToSchema;
 
 use super::app_state::AppState;
+use super::data_flow;
+use super::git_sync;
+use super::import;
+use super::models;
 use crate::services::jwt_service::JwtService;
 use crate::storage::{
     StorageError,
@@ -186,6 +190,24 @@ pub fn workspace_router() -> Router<AppState> {
         )
         // Combined view endpoint (domain tables + imported tables with ownership info)
         .route("/domains/{domain}/canvas", get(get_domain_canvas))
+        // Domain-scoped import endpoints
+        .nest("/domains/{domain}/import", import::domain_import_router())
+        // Domain-scoped export endpoints (added directly to ensure domain path parameter is available)
+        .route(
+            "/domains/{domain}/export/{format}",
+            get(models::domain_export_format),
+        )
+        .route(
+            "/domains/{domain}/export/all",
+            get(models::domain_export_all),
+        )
+        // Domain-scoped git sync endpoints
+        .nest("/domains/{domain}/git", git_sync::domain_git_router())
+        // Domain-scoped data-flow diagram endpoints
+        .nest(
+            "/domains/{domain}/data-flow-diagrams",
+            data_flow::data_flow_router(),
+        )
 }
 
 /// Get the workspace data directory from environment variable
@@ -1892,18 +1914,24 @@ pub struct CreateTableRequest {
 
 /// Result of ensuring a domain is loaded, with context for storage operations.
 #[allow(dead_code)]
-struct DomainContext {
+/// Context for domain operations
+///
+/// This struct is public to allow domain-scoped handlers to access domain context.
+pub struct DomainContext {
     /// The domain info (for storage operations).
-    domain_info: DomainInfo,
+    pub domain_info: DomainInfo,
     /// The user context (for attribution).
-    user_context: UserContext,
+    pub user_context: UserContext,
     /// The workspace info.
-    workspace: StorageWorkspaceInfo,
+    pub workspace: StorageWorkspaceInfo,
 }
 
 /// Helper to ensure domain is loaded for the current session.
 /// Returns the domain context for storage operations.
-async fn ensure_domain_loaded(
+///
+/// This function is public to allow domain-scoped handlers to ensure
+/// the domain is loaded before operating on it.
+pub async fn ensure_domain_loaded(
     state: &AppState,
     headers: &HeaderMap,
     domain: &str,
@@ -1983,6 +2011,13 @@ pub struct DomainTablePath {
 pub struct DomainRelationshipPath {
     pub domain: String,
     pub relationship_id: String,
+}
+
+/// Path parameters for domain + export format routes
+#[derive(Deserialize)]
+pub struct DomainExportPath {
+    pub domain: String,
+    pub format: String,
 }
 
 /// Helper function to serialize table with database_type as "PostgreSQL" instead of "POSTGRES"

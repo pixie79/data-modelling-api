@@ -60,9 +60,6 @@ use utoipa::{Modify, OpenApi};
         // Export
         crate::routes::models::export_format,
         crate::routes::models::export_all,
-        // DrawIO
-        crate::routes::drawio::export_drawio,
-        crate::routes::drawio::import_drawio,
         // Git Sync
         crate::routes::git_sync::get_sync_config,
         crate::routes::git_sync::update_sync_config,
@@ -122,7 +119,7 @@ use utoipa::{Modify, OpenApi};
     info(
         title = "Data Modelling API",
         description = "REST API for data modeling, schema management, and collaboration",
-        version = "1.1.0",
+        version = "1.1.2",
         contact(
             name = "API Support",
             email = "mark@opendatamodelling.com"

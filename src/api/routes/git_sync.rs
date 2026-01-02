@@ -5,41 +5,465 @@
 
 use axum::{
     Router,
-    extract::{Query, State},
-    http::StatusCode,
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
     response::Json,
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{error, info};
 use utoipa::ToSchema;
 
 use super::app_state::AppState;
 use super::auth_context::AuthContext;
-use super::workspace::{get_workspace_data_dir, sanitize_email_for_path, validate_domain_name};
+use super::workspace::{
+    DomainPath, get_workspace_data_dir, sanitize_email_for_path, validate_domain_name,
+};
 use data_modelling_sdk::git::GitService as SdkGitService;
 
-/// Create the git sync router
-pub fn git_sync_router() -> Router<AppState> {
+/// Create the domain-scoped git sync router
+///
+/// All routes require JWT authentication and domain path parameter.
+/// Routes are nested under `/workspace/domains/{domain}/git`
+pub fn domain_git_router() -> Router<AppState> {
     Router::new()
-        .route("/config", get(get_sync_config))
-        .route("/config", post(update_sync_config))
-        .route("/init", post(init_repository))
-        .route("/clone", post(clone_repository))
-        .route("/status", get(get_sync_status))
-        .route("/export", post(export_domain))
-        .route("/commit", post(commit_changes))
-        .route("/push", post(push_changes))
-        .route("/pull", post(pull_changes))
-        .route("/conflicts", get(list_conflicts))
-        .route("/conflicts/resolve", post(resolve_conflict))
+        .route("/config", get(domain_get_sync_config))
+        .route("/config", post(domain_update_sync_config))
+        .route("/init", post(domain_init_repository))
+        .route("/clone", post(domain_clone_repository))
+        .route("/status", get(domain_get_sync_status))
+        .route("/export", post(domain_export_domain))
+        .route("/commit", post(domain_commit_changes))
+        .route("/push", post(domain_push_changes))
+        .route("/pull", post(domain_pull_changes))
+        .route("/conflicts", get(domain_list_conflicts))
+        .route("/conflicts/resolve", post(domain_resolve_conflict))
 }
 
-/// Path parameters for domain-scoped git operations
+// Domain-scoped git sync handlers - use ensure_domain_loaded() to load domain before git operations
+
+/// GET /workspace/domains/{domain}/git/config - Get sync configuration for a domain (domain-scoped)
+#[utoipa::path(
+    get,
+    path = "/workspace/domains/{domain}/git/config",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    responses(
+        (status = 200, description = "Sync configuration retrieved successfully", body = SyncConfigResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_get_sync_config(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    _auth: AuthContext,
+) -> Result<Json<SyncConfigResponse>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not query)
+    get_sync_config(
+        State(state),
+        _auth,
+        Query(GitStatusQuery {
+            domain: Some(domain_path.domain),
+        }),
+    )
+    .await
+}
+
+/// POST /workspace/domains/{domain}/git/config - Update sync configuration for a domain (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/git/config",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body = UpdateSyncConfigRequest,
+    responses(
+        (status = 200, description = "Sync configuration updated successfully", body = SyncConfigResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_update_sync_config(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    Json(request): Json<UpdateSyncConfigRequest>,
+) -> Result<Json<SyncConfigResponse>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler
+    update_sync_config(State(state), auth, Json(request)).await
+}
+
+/// POST /workspace/domains/{domain}/git/init - Initialize a Git repository for a domain (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/git/init",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    responses(
+        (status = 200, description = "Repository initialized successfully", body = InitRepositoryResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_init_repository(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+) -> Result<Json<InitRepositoryResponse>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not request body)
+    init_repository(
+        State(state),
+        auth,
+        Json(InitRepositoryRequest {
+            domain: domain_path.domain,
+        }),
+    )
+    .await
+}
+
+/// POST /workspace/domains/{domain}/git/clone - Clone a repository for a domain (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/git/clone",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body = CloneRepositoryRequestWithoutDomain,
+    responses(
+        (status = 200, description = "Repository cloned successfully", body = CloneRepositoryResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_clone_repository(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    Json(request): Json<CloneRepositoryRequestWithoutDomain>,
+) -> Result<Json<CloneRepositoryResponse>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not request body)
+    clone_repository(
+        State(state),
+        auth,
+        Json(CloneRepositoryRequest {
+            repository_url: request.repository_url,
+            domain: domain_path.domain,
+            branch: request.branch,
+        }),
+    )
+    .await
+}
+
+/// GET /workspace/domains/{domain}/git/status - Get Git status for a domain (domain-scoped)
+#[utoipa::path(
+    get,
+    path = "/workspace/domains/{domain}/git/status",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    responses(
+        (status = 200, description = "Git status retrieved successfully", body = GitStatusResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_get_sync_status(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+) -> Result<Json<GitStatusResponse>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not query)
+    get_sync_status(
+        State(state),
+        auth,
+        Query(GitStatusQuery {
+            domain: Some(domain_path.domain),
+        }),
+    )
+    .await
+}
+
+/// POST /workspace/domains/{domain}/git/export - Export domain to Git repository (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/git/export",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    responses(
+        (status = 200, description = "Domain exported successfully", body = GitExportResult),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_export_domain(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+) -> Result<Json<GitExportResult>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not request body)
+    export_domain(
+        State(state),
+        auth,
+        Json(ExportDomainRequest {
+            domain: domain_path.domain,
+        }),
+    )
+    .await
+}
+
+/// POST /workspace/domains/{domain}/git/commit - Commit changes to Git repository (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/git/commit",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body = CommitRequestWithoutDomain,
+    responses(
+        (status = 200, description = "Changes committed successfully", body = CommitResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_commit_changes(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    Json(request): Json<CommitRequestWithoutDomain>,
+) -> Result<Json<CommitResponse>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not request body)
+    commit_changes(
+        State(state),
+        auth,
+        Json(CommitRequest {
+            domain: domain_path.domain,
+            message: request.message,
+        }),
+    )
+    .await
+}
+
+/// POST /workspace/domains/{domain}/git/push - Push changes to remote repository (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/git/push",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    responses(
+        (status = 200, description = "Changes pushed successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_push_changes(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not query)
+    push_changes(
+        State(state),
+        auth,
+        Query(DomainPath {
+            domain: domain_path.domain,
+        }),
+    )
+    .await
+}
+
+/// POST /workspace/domains/{domain}/git/pull - Pull changes from remote repository (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/git/pull",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    responses(
+        (status = 200, description = "Changes pulled successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_pull_changes(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not query)
+    pull_changes(
+        State(state),
+        auth,
+        Query(DomainPath {
+            domain: domain_path.domain,
+        }),
+    )
+    .await
+}
+
+/// GET /workspace/domains/{domain}/git/conflicts - List Git conflicts for a domain (domain-scoped)
+#[utoipa::path(
+    get,
+    path = "/workspace/domains/{domain}/git/conflicts",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    responses(
+        (status = 200, description = "Conflicts retrieved successfully", body = ConflictListResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_list_conflicts(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+) -> Result<Json<ConflictListResponse>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not query)
+    list_conflicts(
+        State(state),
+        auth,
+        Query(GitStatusQuery {
+            domain: Some(domain_path.domain),
+        }),
+    )
+    .await
+}
+
+/// POST /workspace/domains/{domain}/git/conflicts/resolve - Resolve a Git conflict (domain-scoped)
+#[utoipa::path(
+    post,
+    path = "/workspace/domains/{domain}/git/conflicts/resolve",
+    tag = "Git Sync",
+    params(
+        ("domain" = String, Path, description = "Domain name")
+    ),
+    request_body = ResolveConflictRequestWithoutDomain,
+    responses(
+        (status = 200, description = "Conflict resolved successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn domain_resolve_conflict(
+    State(state): State<AppState>,
+    Path(domain_path): Path<DomainPath>,
+    headers: HeaderMap,
+    auth: AuthContext,
+    Json(request): Json<ResolveConflictRequestWithoutDomain>,
+) -> Result<Json<Value>, StatusCode> {
+    // Ensure domain is loaded
+    let _ctx =
+        super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
+
+    // Delegate to existing handler (domain comes from path, not request body)
+    resolve_conflict(
+        State(state),
+        auth,
+        Json(ResolveConflictRequest {
+            domain: domain_path.domain,
+            file_path: request.file_path,
+            resolution: request.resolution,
+        }),
+    )
+    .await
+}
+
+/// Request to clone a repository (without domain - domain comes from path)
 #[derive(Deserialize, ToSchema)]
-pub struct DomainPath {
-    domain: String,
+pub struct CloneRepositoryRequestWithoutDomain {
+    pub repository_url: String,
+    pub branch: Option<String>,
+}
+
+/// Request to commit changes (without domain - domain comes from path)
+#[derive(Deserialize, ToSchema)]
+pub struct CommitRequestWithoutDomain {
+    pub message: String,
+}
+
+/// Request to resolve a conflict (without domain - domain comes from path)
+#[derive(Deserialize, ToSchema)]
+pub struct ResolveConflictRequestWithoutDomain {
+    pub file_path: String,
+    pub resolution: String, // "ours", "theirs", or "manual"
 }
 
 /// Query parameters for git status
