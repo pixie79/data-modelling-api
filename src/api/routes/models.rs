@@ -26,25 +26,8 @@ pub struct ExportQuery {
     pub schema_type: Option<String>, // For schema export: json_schema, avro, protobuf
 }
 
-/// Create the models export router
-pub fn models_router() -> Router<AppState> {
-    Router::new()
-        .route("/export/{format}", get(export_format))
-        .route("/export/all", get(export_all))
-}
-
-/// Create the domain-scoped export router
-///
-/// All routes require JWT authentication and domain path parameter.
-/// Routes are nested under `/workspace/domains/{domain}/export`
-///
-/// Note: This router is not used directly - routes are added to workspace_router()
-/// to ensure domain path parameter is available.
-pub fn domain_export_router() -> Router<AppState> {
-    Router::new()
-        .route("/{format}", get(domain_export_format))
-        .route("/all", get(domain_export_all))
-}
+// Legacy routers removed - all export routes are now domain-scoped
+// and added directly to workspace_router() to ensure domain path parameter is available
 
 // Domain-scoped export handlers - use ensure_domain_loaded() to load domain before exporting
 

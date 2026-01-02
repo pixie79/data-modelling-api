@@ -12,7 +12,6 @@ pub mod error;
 // DrawIO routes - uses crate::drawio from lib.rs
 pub mod collaboration;
 pub mod collaboration_sessions;
-pub mod drawio;
 pub mod git_sync;
 pub mod import;
 pub mod models;

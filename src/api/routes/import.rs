@@ -167,21 +167,6 @@ pub struct ODCLTextImportRequest {
     pub filename: Option<String>,
 }
 
-/// Create the import router
-///
-/// All routes require JWT authentication.
-pub fn import_router() -> Router<AppState> {
-    Router::new()
-        // ODCS v3.1.0 (primary) and legacy ODCL (deprecated, support ends 31/12/26)
-        .route("/odcl", post(import_odcl)) // Legacy endpoint name kept for backward compatibility
-        .route("/odcl/text", post(import_odcl_text)) // Legacy endpoint name kept for backward compatibility
-        .route("/sql", post(import_sql))
-        .route("/sql/text", post(import_sql_text))
-        .route("/avro", post(import_avro))
-        .route("/json-schema", post(import_json_schema))
-        .route("/protobuf", post(import_protobuf))
-}
-
 /// Create the domain-scoped import router
 ///
 /// All routes require JWT authentication and domain path parameter.

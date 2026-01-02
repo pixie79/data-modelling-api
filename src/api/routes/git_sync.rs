@@ -23,22 +23,6 @@ use super::workspace::{
 };
 use data_modelling_sdk::git::GitService as SdkGitService;
 
-/// Create the git sync router
-pub fn git_sync_router() -> Router<AppState> {
-    Router::new()
-        .route("/config", get(get_sync_config))
-        .route("/config", post(update_sync_config))
-        .route("/init", post(init_repository))
-        .route("/clone", post(clone_repository))
-        .route("/status", get(get_sync_status))
-        .route("/export", post(export_domain))
-        .route("/commit", post(commit_changes))
-        .route("/push", post(push_changes))
-        .route("/pull", post(pull_changes))
-        .route("/conflicts", get(list_conflicts))
-        .route("/conflicts/resolve", post(resolve_conflict))
-}
-
 /// Create the domain-scoped git sync router
 ///
 /// All routes require JWT authentication and domain path parameter.

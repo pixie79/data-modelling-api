@@ -60,9 +60,6 @@ use utoipa::{Modify, OpenApi};
         // Export
         crate::routes::models::export_format,
         crate::routes::models::export_all,
-        // DrawIO
-        crate::routes::drawio::export_drawio,
-        crate::routes::drawio::import_drawio,
         // Git Sync
         crate::routes::git_sync::get_sync_config,
         crate::routes::git_sync::update_sync_config,
