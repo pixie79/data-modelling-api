@@ -1738,7 +1738,7 @@ async fn domain_import_odcl(
     Path(path): Path<super::workspace::DomainPath>,
     headers: HeaderMap,
     auth: AuthContext,
-    multipart: Multipart,
+    #[allow(unused_mut)] mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded before importing
     let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
@@ -1800,7 +1800,7 @@ async fn domain_import_sql(
     Path(path): Path<super::workspace::DomainPath>,
     headers: HeaderMap,
     auth: AuthContext,
-    multipart: Multipart,
+    #[allow(unused_mut)] mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded before importing
     let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
@@ -1862,7 +1862,7 @@ async fn domain_import_avro(
     Path(path): Path<super::workspace::DomainPath>,
     headers: HeaderMap,
     auth: AuthContext,
-    mut multipart: Multipart,
+    #[allow(unused_mut)] mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded before importing
     let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
@@ -1893,7 +1893,7 @@ async fn domain_import_json_schema(
     Path(path): Path<super::workspace::DomainPath>,
     headers: HeaderMap,
     auth: AuthContext,
-    mut multipart: Multipart,
+    #[allow(unused_mut)] mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded before importing
     let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;
@@ -1924,7 +1924,7 @@ async fn domain_import_protobuf(
     Path(path): Path<super::workspace::DomainPath>,
     headers: HeaderMap,
     auth: AuthContext,
-    mut multipart: Multipart,
+    #[allow(unused_mut)] mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded before importing
     let _ctx = super::workspace::ensure_domain_loaded(&state, &headers, &path.domain).await?;

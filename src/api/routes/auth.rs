@@ -560,12 +560,12 @@ pub async fn exchange_auth_code(
             drop(sessions);
 
             // Also update database session if available
-            if let Some(db_session_store) = auth_state.app_state.db_session_store() {
-                if let Ok(session_uuid) = Uuid::parse_str(&entry.session_id) {
-                    let _ = db_session_store
-                        .update_selected_email(session_uuid, &email)
-                        .await;
-                }
+            if let Some(db_session_store) = auth_state.app_state.db_session_store()
+                && let Ok(session_uuid) = Uuid::parse_str(&entry.session_id)
+            {
+                let _ = db_session_store
+                    .update_selected_email(session_uuid, &email)
+                    .await;
             }
 
             (new_tokens, Some(email), true) // Remove code after successful token generation
@@ -1197,7 +1197,7 @@ async fn select_email(
 ) -> Result<Json<SelectEmailResponse>, StatusCode> {
     // Support both Bearer token auth and exchange code auth
     // This allows selecting email when initial exchange returned empty tokens
-    let (session_id, github_id, github_username, emails) = if let Some(code) = &request.code {
+    let (session_id, github_id, github_username, _emails) = if let Some(code) = &request.code {
         // Use exchange code for authentication
         let mut store = auth_state.token_exchange_store.lock().await;
         let entry = match store.get(code) {

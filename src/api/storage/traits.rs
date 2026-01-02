@@ -266,6 +266,7 @@ pub trait StorageBackend: Send + Sync {
     ) -> Result<DataFlowDiagram, super::StorageError>;
 
     /// Update a data-flow diagram with optimistic locking
+    #[allow(clippy::too_many_arguments)]
     async fn update_data_flow_diagram(
         &self,
         diagram_id: Uuid,

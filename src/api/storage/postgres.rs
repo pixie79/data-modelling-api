@@ -959,7 +959,7 @@ impl StorageBackend for PostgresStorageBackend {
         description: Option<String>,
         diagram_data: Option<serde_json::Value>,
         expected_version: Option<i32>,
-        user_context: &UserContext,
+        _user_context: &UserContext,
     ) -> Result<DataFlowDiagram, StorageError> {
         // Check if diagram exists and verify version if provided
         let current = self
@@ -970,16 +970,16 @@ impl StorageBackend for PostgresStorageBackend {
                 entity_id: diagram_id.to_string(),
             })?;
 
-        if let Some(expected) = expected_version {
-            if current.version != expected {
-                return Err(StorageError::VersionConflict {
-                    entity_type: "data_flow_diagram".to_string(),
-                    entity_id: diagram_id.to_string(),
-                    expected_version: expected,
-                    current_version: current.version,
-                    current_data: Some(serde_json::to_value(&current).unwrap_or_default()),
-                });
-            }
+        if let Some(expected) = expected_version
+            && current.version != expected
+        {
+            return Err(StorageError::VersionConflict {
+                entity_type: "data_flow_diagram".to_string(),
+                entity_id: diagram_id.to_string(),
+                expected_version: expected,
+                current_version: current.version,
+                current_data: Some(serde_json::to_value(&current).unwrap_or_default()),
+            });
         }
 
         let new_version = current.version + 1;

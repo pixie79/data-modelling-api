@@ -12,7 +12,6 @@ use axum::{
 use serde::Deserialize;
 use serde_json::Value;
 use tracing::{error, info};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::app_state::AppState;
@@ -110,7 +109,7 @@ async fn create_data_flow_diagram(
     State(state): State<AppState>,
     Path(domain_path): Path<DomainPath>,
     headers: HeaderMap,
-    auth: AuthContext,
+    _auth: AuthContext,
     Json(request): Json<CreateDataFlowDiagramRequest>,
 ) -> Result<Json<DataFlowDiagram>, StatusCode> {
     // Ensure domain is loaded
@@ -227,7 +226,7 @@ async fn update_data_flow_diagram(
     State(state): State<AppState>,
     Path((domain_path, diagram_path)): Path<(DomainPath, DataFlowDiagramPath)>,
     headers: HeaderMap,
-    auth: AuthContext,
+    _auth: AuthContext,
     Json(request): Json<UpdateDataFlowDiagramRequest>,
 ) -> Result<Json<DataFlowDiagram>, StatusCode> {
     // Ensure domain is loaded
@@ -292,7 +291,7 @@ async fn delete_data_flow_diagram(
     State(state): State<AppState>,
     Path((domain_path, diagram_path)): Path<(DomainPath, DataFlowDiagramPath)>,
     headers: HeaderMap,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<Value>, StatusCode> {
     // Ensure domain is loaded
     let ctx = super::workspace::ensure_domain_loaded(&state, &headers, &domain_path.domain).await?;
