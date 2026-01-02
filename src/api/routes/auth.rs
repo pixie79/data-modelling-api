@@ -1080,7 +1080,7 @@ pub async fn get_auth_status(
 /// GET /api/v1/auth/me - Get current authenticated user information
 #[utoipa::path(
     get,
-    path = "/api/v1/auth/me",
+    path = "/auth/me",
     tag = "Authentication",
     responses(
         (status = 200, description = "User information retrieved successfully", body = UserInfoResponse),
@@ -1186,26 +1186,103 @@ async fn select_email(
     }
     drop(revoked);
 
-    let mut sessions = auth_state.session_store.lock().await;
-    let session = sessions
-        .get_mut(&claims.session_id)
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    // Get session to extract user information and validate email
+    let session_uuid = match Uuid::parse_str(&claims.session_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+    };
 
-    // Validate email is in user's GitHub emails
-    let email_valid = session
-        .emails
-        .iter()
-        .any(|e| e.email == request.email && e.verified);
+    // Try database session first, then in-memory
+    let (github_id, github_username) =
+        if let Some(db_session_store) = auth_state.app_state.db_session_store() {
+            match db_session_store.get_session(session_uuid).await {
+                Ok(Some(session)) => {
+                    // Check if session is valid
+                    if session.revoked_at.is_some() || session.expires_at < chrono::Utc::now() {
+                        return Err(StatusCode::UNAUTHORIZED);
+                    }
 
-    if !email_valid {
-        return Err(StatusCode::BAD_REQUEST);
-    }
+                    // Validate email is in user's GitHub emails
+                    let email_valid = session
+                        .emails
+                        .iter()
+                        .any(|e| e.email == request.email && e.verified);
 
-    // Update session with selected email
-    session.selected_email = Some(request.email.clone());
-    let github_id = session.github_id;
-    let github_username = session.github_username.clone();
-    drop(sessions);
+                    if !email_valid {
+                        return Err(StatusCode::BAD_REQUEST);
+                    }
+
+                    // Update selected email in database
+                    if let Err(e) = db_session_store
+                        .update_selected_email(session_uuid, &request.email)
+                        .await
+                    {
+                        warn!("Failed to update selected email in database: {}", e);
+                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    }
+
+                    (session.github_id, session.github_username)
+                }
+                Ok(None) => {
+                    // Session not found in database, try in-memory fallback
+                    let sessions = auth_state.session_store.lock().await;
+                    let session = sessions
+                        .get(&claims.session_id)
+                        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+                    // Validate email is in user's GitHub emails
+                    let email_valid = session
+                        .emails
+                        .iter()
+                        .any(|e| e.email == request.email && e.verified);
+
+                    if !email_valid {
+                        return Err(StatusCode::BAD_REQUEST);
+                    }
+
+                    let github_id = session.github_id;
+                    let github_username = session.github_username.clone();
+                    drop(sessions);
+
+                    // Update in-memory session
+                    let mut sessions = auth_state.session_store.lock().await;
+                    if let Some(session) = sessions.get_mut(&claims.session_id) {
+                        session.selected_email = Some(request.email.clone());
+                    }
+                    drop(sessions);
+
+                    (github_id, github_username)
+                }
+                Err(e) => {
+                    warn!("Failed to get session from database: {}", e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
+            }
+        } else {
+            // In-memory session (file-based mode)
+            let mut sessions = auth_state.session_store.lock().await;
+            let session = sessions
+                .get_mut(&claims.session_id)
+                .ok_or(StatusCode::UNAUTHORIZED)?;
+
+            // Validate email is in user's GitHub emails
+            let email_valid = session
+                .emails
+                .iter()
+                .any(|e| e.email == request.email && e.verified);
+
+            if !email_valid {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+
+            // Update session with selected email
+            session.selected_email = Some(request.email.clone());
+            let github_id = session.github_id;
+            let github_username = session.github_username.clone();
+            drop(sessions);
+
+            (github_id, github_username)
+        };
 
     // Generate new tokens with the selected email as subject
     let new_tokens = auth_state

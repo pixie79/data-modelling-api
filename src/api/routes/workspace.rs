@@ -27,6 +27,7 @@ use crate::storage::{
 };
 use axum::http::HeaderMap;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Deserialize, ToSchema)]
 pub struct CreateWorkspaceRequest {
@@ -434,12 +435,49 @@ pub async fn ensure_workspace_loaded_with_session_id(
     drop(model_service); // Release lock before async operation
 
     let email = if let Some(session_id) = session_id {
-        // Get session from store
-        let sessions = app_state.session_store.lock().await;
-        if let Some(session) = sessions.get(&session_id) {
-            session.selected_email.clone()
+        // Try database session first, then in-memory
+        let session_uuid = Uuid::parse_str(&session_id).ok();
+
+        if let Some(uuid) = session_uuid {
+            if let Some(db_session_store) = app_state.db_session_store.as_ref() {
+                match db_session_store.get_session(uuid).await {
+                    Ok(Some(session)) => {
+                        // Check if session is valid
+                        if session.revoked_at.is_none() && session.expires_at > chrono::Utc::now() {
+                            session.selected_email.clone()
+                        } else {
+                            None
+                        }
+                    }
+                    Ok(None) => {
+                        // Session not found in database, try in-memory
+                        let sessions = app_state.session_store.lock().await;
+                        sessions
+                            .get(&session_id)
+                            .and_then(|s| s.selected_email.clone())
+                    }
+                    Err(e) => {
+                        warn!("Failed to get session from database: {}", e);
+                        // Fall through to in-memory check
+                        let sessions = app_state.session_store.lock().await;
+                        sessions
+                            .get(&session_id)
+                            .and_then(|s| s.selected_email.clone())
+                    }
+                }
+            } else {
+                // No database session store, use in-memory
+                let sessions = app_state.session_store.lock().await;
+                sessions
+                    .get(&session_id)
+                    .and_then(|s| s.selected_email.clone())
+            }
         } else {
-            None
+            // Invalid UUID format, try in-memory fallback
+            let sessions = app_state.session_store.lock().await;
+            sessions
+                .get(&session_id)
+                .and_then(|s| s.selected_email.clone())
         }
     } else {
         None
@@ -502,7 +540,7 @@ pub async fn get_workspace_info(
 /// GET /api/v1/workspaces - List all workspaces for the authenticated user
 #[utoipa::path(
     get,
-    path = "/api/v1/workspaces",
+    path = "/workspaces",
     tag = "Workspace",
     responses(
         (status = 200, description = "List of workspaces retrieved successfully", body = WorkspacesListResponse),
@@ -598,7 +636,7 @@ pub async fn list_workspaces(
 /// POST /api/v1/workspaces - Create a new workspace for the authenticated user
 #[utoipa::path(
     post,
-    path = "/api/v1/workspaces",
+    path = "/workspaces",
     tag = "Workspace",
     request_body = CreateWorkspaceV1Request,
     responses(
@@ -971,7 +1009,43 @@ async fn get_session_email(state: &AppState, headers: &HeaderMap) -> Result<Stri
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Verify session still exists in store
+    // Verify session still exists - check database first, then in-memory
+    let session_uuid = match Uuid::parse_str(&claims.session_id) {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            // Invalid UUID format, try in-memory fallback
+            let sessions = state.session_store.lock().await;
+            if !sessions.contains_key(&claims.session_id) {
+                warn!("Session {} not found in store", claims.session_id);
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+            return Ok(claims.sub);
+        }
+    };
+
+    // Try database session first
+    if let Some(db_session_store) = state.db_session_store.as_ref() {
+        match db_session_store.get_session(session_uuid).await {
+            Ok(Some(session)) => {
+                // Check if session is valid
+                if session.revoked_at.is_some() || session.expires_at < chrono::Utc::now() {
+                    warn!("Session {} is expired or revoked", claims.session_id);
+                    return Err(StatusCode::UNAUTHORIZED);
+                }
+                // Session is valid, return email from claims
+                return Ok(claims.sub);
+            }
+            Ok(None) => {
+                // Session not found in database, try in-memory
+            }
+            Err(e) => {
+                warn!("Failed to get session from database: {}", e);
+                // Fall through to in-memory check
+            }
+        }
+    }
+
+    // Fall back to in-memory session store
     let sessions = state.session_store.lock().await;
     if !sessions.contains_key(&claims.session_id) {
         warn!("Session {} not found in store", claims.session_id);
@@ -1785,7 +1859,6 @@ use crate::models::enums::{
 };
 use crate::models::{Column, Position, Table};
 use serde_json::{Value, json};
-use uuid::Uuid;
 
 /// Request body for creating a table
 #[derive(Debug, Deserialize, ToSchema)]

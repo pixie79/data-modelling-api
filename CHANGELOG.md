@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-01-02
+
+### Fixed
+
+- **fix(auth)**: Database session support for `/api/v1/auth/select-email` endpoint
+  - Endpoint now correctly checks PostgreSQL-backed sessions before falling back to in-memory
+  - Added `update_selected_email` method to `DbSessionStore` for database session updates
+  - Resolves 401 errors when using PostgreSQL storage backend
+
+- **fix(auth)**: Database session support for authentication helpers
+  - `ensure_workspace_loaded_with_session_id` now checks database sessions
+  - `get_session_email` now validates database sessions first
+  - `AuthContext` extractor now supports database-backed sessions
+  - All authentication endpoints now work correctly with PostgreSQL storage
+
+- **fix(openapi)**: Consistent OpenAPI path specifications
+  - Fixed `/api/v1/workspaces` and `/api/v1/auth/me` paths to use relative paths
+  - All endpoints now correctly report `/api/v1/` prefix in OpenAPI spec
+  - Paths are now consistent with router mounting at `/api/v1`
+
+- **fix(domain)**: Updated URLs and emails to use opendatamodelling.com domain
+  - API support email updated to mark@opendatamodelling.com
+  - Production server URL updated to api.opendatamodelling.com
+  - Author email in Cargo.toml updated to mark@opendatamodelling.com
+
 ## [1.1.0] - 2025-01-27
 
 ### Added

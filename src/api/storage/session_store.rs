@@ -125,6 +125,27 @@ impl DbSessionStore {
         Ok(())
     }
 
+    /// Update selected email for a session
+    pub async fn update_selected_email(
+        &self,
+        session_id: Uuid,
+        selected_email: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE sessions
+            SET selected_email = $1, last_activity = NOW()
+            WHERE id = $2 AND expires_at > NOW()
+            "#,
+            selected_email,
+            session_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     /// Check if session is valid
     pub async fn is_session_valid(&self, session_id: Uuid) -> Result<bool, sqlx::Error> {
         let count = sqlx::query_scalar!(
