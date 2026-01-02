@@ -125,7 +125,7 @@ use utoipa::{Modify, OpenApi};
         version = "1.1.0",
         contact(
             name = "API Support",
-            email = "mark@olliver.me.uk"
+            email = "mark@opendatamodelling.com"
         ),
         license(
             name = "MIT",
@@ -134,7 +134,7 @@ use utoipa::{Modify, OpenApi};
     ),
     servers(
         (url = "http://localhost:8081/api/v1", description = "Local development server"),
-        (url = "https://api.example.com/api/v1", description = "Production server")
+        (url = "https://api.opendatamodelling.com/api/v1", description = "Production server")
     )
 )]
 pub struct ApiDoc;
