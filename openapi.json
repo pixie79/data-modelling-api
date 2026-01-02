@@ -1,1 +1,3874 @@
-{"openapi":"3.0.3","info":{"title":"Data Modelling API","description":"REST API for data modeling, schema management, and collaboration","contact":{"name":"API Support","email":"mark@opendatamodelling.com"},"license":{"name":"MIT","url":"https://opensource.org/licenses/MIT"},"version":"1.1.0"},"servers":[{"url":"http://localhost:8081/api/v1","description":"Local development server"},{"url":"https://api.opendatamodelling.com/api/v1","description":"Production server"}],"paths":{"/ai/resolve-errors":{"post":{"tags":["AI"],"summary":"POST /ai/resolve-errors - Use AI to resolve import errors","operationId":"resolve_errors","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResolveErrorsRequest"}}},"required":true},"responses":{"200":{"description":"AI resolutions generated successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResolveErrorsResponse"}}}},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/audit/domains/{domain_id}/history":{"get":{"tags":["Audit"],"summary":"GET /audit/domains/{domain_id}/history","operationId":"get_domain_history","parameters":[{"name":"domain_id","in":"path","description":"Domain UUID","required":true,"schema":{"type":"string","format":"uuid"}},{"name":"limit","in":"query","description":"Limit number of results","required":false,"schema":{"type":"integer","format":"int64","nullable":true}},{"name":"offset","in":"query","description":"Offset for pagination","required":false,"schema":{"type":"integer","format":"int64","nullable":true}}],"responses":{"200":{"description":"Audit history retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuditHistoryResponse"}}}},"401":{"description":"Unauthorized"},"404":{"description":"Domain not found"}},"security":[{"bearer_auth":[]}]}},"/audit/entries/{entry_id}":{"get":{"tags":["Audit"],"summary":"GET /audit/entries/{entry_id}","operationId":"get_audit_entry","parameters":[{"name":"entry_id","in":"path","description":"Audit entry UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Audit entry retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuditEntryDetailResponse"}}}},"401":{"description":"Unauthorized"},"404":{"description":"Audit entry not found"}},"security":[{"bearer_auth":[]}]}},"/audit/relationships/{relationship_id}/history":{"get":{"tags":["Audit"],"summary":"GET /audit/relationships/{relationship_id}/history","operationId":"get_relationship_history","parameters":[{"name":"relationship_id","in":"path","description":"Relationship UUID","required":true,"schema":{"type":"string","format":"uuid"}},{"name":"limit","in":"query","description":"Limit number of results","required":false,"schema":{"type":"integer","format":"int64","nullable":true}},{"name":"offset","in":"query","description":"Offset for pagination","required":false,"schema":{"type":"integer","format":"int64","nullable":true}}],"responses":{"200":{"description":"Audit history retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuditHistoryResponse"}}}},"401":{"description":"Unauthorized"},"404":{"description":"Relationship not found"}},"security":[{"bearer_auth":[]}]}},"/audit/tables/{table_id}/history":{"get":{"tags":["Audit"],"summary":"GET /audit/tables/{table_id}/history","operationId":"get_table_history","parameters":[{"name":"table_id","in":"path","description":"Table UUID","required":true,"schema":{"type":"string","format":"uuid"}},{"name":"limit","in":"query","description":"Limit number of results","required":false,"schema":{"type":"integer","format":"int64","nullable":true}},{"name":"offset","in":"query","description":"Offset for pagination","required":false,"schema":{"type":"integer","format":"int64","nullable":true}}],"responses":{"200":{"description":"Audit history retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuditHistoryResponse"}}}},"401":{"description":"Unauthorized"},"404":{"description":"Table not found"}},"security":[{"bearer_auth":[]}]}},"/audit/workspaces/{workspace_id}/history":{"get":{"tags":["Audit"],"summary":"GET /audit/workspaces/{workspace_id}/history","operationId":"get_workspace_history","parameters":[{"name":"workspace_id","in":"path","description":"Workspace UUID","required":true,"schema":{"type":"string","format":"uuid"}},{"name":"limit","in":"query","description":"Limit number of results","required":false,"schema":{"type":"integer","format":"int64","nullable":true}},{"name":"offset","in":"query","description":"Offset for pagination","required":false,"schema":{"type":"integer","format":"int64","nullable":true}}],"responses":{"200":{"description":"Audit history retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuditHistoryResponse"}}}},"401":{"description":"Unauthorized"},"404":{"description":"Workspace not found"}},"security":[{"bearer_auth":[]}]}},"/auth/exchange":{"post":{"tags":["Authentication"],"summary":"POST /auth/exchange - Exchange a short-lived one-time code for JWT tokens (web flow).","operationId":"exchange_auth_code","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ExchangeAuthCodeRequest"}}},"required":true},"responses":{"200":{"description":"Auth code exchanged successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ExchangeAuthCodeResponse"}}}},"400":{"description":"Bad request - invalid or expired code"}}}},"/auth/github/callback":{"get":{"tags":["Authentication"],"summary":"GET /auth/github/callback - Handle GitHub OAuth callback","description":"This handler supports both in-memory (file storage) and database-backed (PostgreSQL) sessions.","operationId":"handle_github_callback","responses":{"302":{"description":"Redirect to frontend with auth code or error"},"400":{"description":"Bad request - invalid callback parameters"}}}},"/auth/github/login":{"get":{"tags":["Authentication"],"summary":"GET /auth/github/login - Initiate GitHub OAuth flow (web - direct redirect)","operationId":"initiate_github_login","parameters":[{"name":"redirect_uri","in":"query","description":"Optional redirect URI after OAuth completion","required":false,"schema":{"type":"string","nullable":true}}],"responses":{"302":{"description":"Redirect to GitHub OAuth authorization page"},"400":{"description":"Bad request - invalid redirect_uri"},"500":{"description":"Internal server error"}}}},"/auth/github/login/desktop":{"get":{"tags":["Authentication"],"summary":"GET /auth/github/login/desktop - Initiate GitHub OAuth flow for desktop apps","operationId":"initiate_desktop_github_login","responses":{"200":{"description":"Desktop OAuth flow initiated successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DesktopAuthInitResponse"}}}},"500":{"description":"Internal server error"}}}},"/auth/logout":{"post":{"tags":["Authentication"],"summary":"POST /auth/logout - Logout and revoke session","description":"Supports both in-memory and database-backed session revocation.","operationId":"logout","responses":{"200":{"description":"Logged out successfully","content":{"application/json":{"schema":{"type":"object"}}}},"401":{"description":"Unauthorized - invalid or missing token"}},"security":[{"bearer_auth":[]}]}},"/auth/poll/{state_id}":{"get":{"tags":["Authentication"],"summary":"GET /auth/poll/{state_id} - Poll for desktop auth completion","operationId":"poll_auth_status","parameters":[{"name":"state_id","in":"path","description":"Desktop auth state ID","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Auth status retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/PollAuthResponse"}}}},"404":{"description":"State ID not found"}}}},"/auth/refresh":{"post":{"tags":["Authentication"],"summary":"POST /auth/refresh - Refresh access token using refresh token","description":"Supports both in-memory and database-backed session validation.","operationId":"refresh_token","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RefreshTokenRequest"}}},"required":true},"responses":{"200":{"description":"Token refreshed successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/RefreshTokenResponse"}}}},"401":{"description":"Unauthorized - invalid or expired refresh token"}}}},"/auth/select-email":{"post":{"tags":["Authentication"],"summary":"POST /auth/select-email - Select email for workspace creation","operationId":"select_email","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SelectEmailRequest"}}},"required":true},"responses":{"200":{"description":"Email selected successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SelectEmailResponse"}}}},"400":{"description":"Bad request - invalid email"},"401":{"description":"Unauthorized - invalid or missing token"}},"security":[{"bearer_auth":[]}]}},"/auth/status":{"get":{"tags":["Authentication"],"summary":"GET /auth/status - Get current authentication status","description":"Supports both in-memory and database-backed session queries.","operationId":"get_auth_status","responses":{"200":{"description":"Auth status retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthStatusResponse"}}}}},"security":[{"bearer_auth":[]}]}},"/collaboration/sessions":{"get":{"tags":["Collaboration"],"summary":"GET /collaboration/sessions - List collaboration sessions","operationId":"list_sessions","parameters":[{"name":"workspace_id","in":"query","description":"Filter by workspace ID","required":false,"schema":{"type":"string","format":"uuid","nullable":true}}],"responses":{"200":{"description":"Sessions retrieved successfully","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/SessionResponse"}}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]},"post":{"tags":["Collaboration"],"summary":"POST /collaboration/sessions - Create a new collaboration session","operationId":"create_session","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateSessionRequest"}}},"required":true},"responses":{"200":{"description":"Session created successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SessionResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/collaboration/sessions/{session_id}":{"get":{"tags":["Collaboration"],"summary":"GET /collaboration/sessions/{session_id} - Get a collaboration session","operationId":"get_session","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Session retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SessionResponse"}}}},"401":{"description":"Unauthorized"},"404":{"description":"Session not found"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]},"delete":{"tags":["Collaboration"],"summary":"DELETE /collaboration/sessions/{session_id} - End a collaboration session","operationId":"end_session","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"204":{"description":"Session ended successfully"},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/collaboration/sessions/{session_id}/invite":{"post":{"tags":["Collaboration"],"summary":"POST /collaboration/sessions/{session_id}/invite - Invite a user to a session","operationId":"invite_user","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InviteRequest"}}},"required":true},"responses":{"200":{"description":"User invited successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ParticipantResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/collaboration/sessions/{session_id}/participants":{"get":{"tags":["Collaboration"],"summary":"GET /collaboration/sessions/{session_id}/participants - List participants","operationId":"list_participants","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Participants retrieved successfully","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ParticipantResponse"}}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/collaboration/sessions/{session_id}/participants/{user_id}":{"delete":{"tags":["Collaboration"],"summary":"DELETE /collaboration/sessions/{session_id}/participants/{user_id} - Remove participant","operationId":"remove_participant","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}},{"name":"user_id","in":"path","description":"User UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"204":{"description":"Participant removed successfully"},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/collaboration/sessions/{session_id}/presence":{"get":{"tags":["Collaboration"],"summary":"GET /collaboration/sessions/{session_id}/presence - Get presence information","operationId":"get_presence","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Presence retrieved successfully","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/PresenceResponse"}}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/collaboration/sessions/{session_id}/requests":{"get":{"tags":["Collaboration"],"summary":"GET /collaboration/sessions/{session_id}/requests - List pending requests","operationId":"list_pending_requests","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Requests retrieved successfully","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/AccessRequestResponse"}}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]},"post":{"tags":["Collaboration"],"summary":"POST /collaboration/sessions/{session_id}/requests - Request access","operationId":"request_access","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AccessRequestRequest"}}},"required":true},"responses":{"200":{"description":"Access requested successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AccessRequestResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/collaboration/sessions/{session_id}/requests/{request_id}":{"post":{"tags":["Collaboration"],"summary":"POST /collaboration/sessions/{session_id}/requests/{request_id} - Respond to request","operationId":"respond_to_request","parameters":[{"name":"session_id","in":"path","description":"Session UUID","required":true,"schema":{"type":"string","format":"uuid"}},{"name":"request_id","in":"path","description":"Request UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RespondToRequestRequest"}}},"required":true},"responses":{"200":{"description":"Request responded to successfully"},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/export/drawio":{"get":{"tags":["Export"],"summary":"GET /export/drawio - Export model to DrawIO XML format","operationId":"export_drawio","responses":{"200":{"description":"DrawIO XML exported successfully"},"404":{"description":"Model not found"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]},"post":{"tags":["Import"],"summary":"POST /import/drawio - Import DrawIO XML file to restore layout","operationId":"import_drawio","requestBody":{"description":"DrawIO XML file","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Multipart"}}},"required":true},"responses":{"200":{"description":"DrawIO XML imported successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid XML or missing file"},"404":{"description":"Model not found"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/clone":{"post":{"tags":["Git Sync"],"summary":"POST /git/clone - Clone a repository for a domain","operationId":"clone_repository","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CloneRepositoryRequest"}}},"required":true},"responses":{"200":{"description":"Repository cloned successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CloneRepositoryResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/commit":{"post":{"tags":["Git Sync"],"summary":"POST /git/commit - Commit changes to Git repository","operationId":"commit_changes","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CommitRequest"}}},"required":true},"responses":{"200":{"description":"Changes committed successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CommitResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/config":{"get":{"tags":["Git Sync"],"summary":"GET /git/config - Get sync configuration for a domain","operationId":"get_sync_config","parameters":[{"name":"domain","in":"query","description":"Domain name","required":false,"schema":{"type":"string","nullable":true}}],"responses":{"200":{"description":"Sync configuration retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SyncConfigResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]},"post":{"tags":["Git Sync"],"summary":"POST /git/config - Update sync configuration for a domain","operationId":"update_sync_config","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/UpdateSyncConfigRequest"}}},"required":true},"responses":{"200":{"description":"Sync configuration updated successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SyncConfigResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/conflicts":{"get":{"tags":["Git Sync"],"summary":"GET /git/conflicts - List Git conflicts for a domain","operationId":"list_conflicts","parameters":[{"name":"domain","in":"query","description":"Domain name","required":false,"schema":{"type":"string","nullable":true}}],"responses":{"200":{"description":"Conflicts retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ConflictListResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/conflicts/resolve":{"post":{"tags":["Git Sync"],"summary":"POST /git/conflicts/resolve - Resolve a Git conflict","operationId":"resolve_conflict","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResolveConflictRequest"}}},"required":true},"responses":{"200":{"description":"Conflict resolved successfully"},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/export":{"post":{"tags":["Git Sync"],"summary":"POST /git/export - Export domain to Git repository","operationId":"export_domain","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ExportDomainRequest"}}},"required":true},"responses":{"200":{"description":"Domain exported successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/GitExportResult"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/init":{"post":{"tags":["Git Sync"],"summary":"POST /git/init - Initialize a Git repository for a domain","operationId":"init_repository","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InitRepositoryRequest"}}},"required":true},"responses":{"200":{"description":"Repository initialized successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/InitRepositoryResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/pull":{"post":{"tags":["Git Sync"],"summary":"POST /git/pull - Pull changes from remote repository","operationId":"pull_changes","parameters":[{"name":"domain","in":"query","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Changes pulled successfully"},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/push":{"post":{"tags":["Git Sync"],"summary":"POST /git/push - Push changes to remote repository","operationId":"push_changes","parameters":[{"name":"domain","in":"query","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Changes pushed successfully"},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/git/status":{"get":{"tags":["Git Sync"],"summary":"GET /git/status - Get Git status for a domain","operationId":"get_sync_status","parameters":[{"name":"domain","in":"query","description":"Domain name","required":false,"schema":{"type":"string","nullable":true}}],"responses":{"200":{"description":"Git status retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/GitStatusResponse"}}}},"401":{"description":"Unauthorized"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/import/avro":{"post":{"tags":["Import"],"summary":"POST /import/avro - Import tables from AVRO schema file","description":"Requires JWT authentication.","operationId":"import_avro","requestBody":{"description":"AVRO schema file","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Multipart"}}},"required":true},"responses":{"200":{"description":"AVRO schema imported successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid AVRO schema"},"401":{"description":"Unauthorized - invalid or missing token"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/import/json-schema":{"post":{"tags":["Import"],"summary":"POST /import/json-schema - Import tables from JSON Schema file","description":"Requires JWT authentication.","operationId":"import_json_schema","requestBody":{"description":"JSON Schema file","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Multipart"}}},"required":true},"responses":{"200":{"description":"JSON Schema imported successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid JSON Schema"},"401":{"description":"Unauthorized - invalid or missing token"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/import/odcl":{"post":{"tags":["Import"],"summary":"POST /import/odcl - Import tables from ODCS/ODCL file","description":"Supports:\n- ODCS (Open Data Contract Standard) v3.1.0 (primary format)\n- Legacy ODCL formats (deprecated, support ends 31/12/26)\n\nRequires JWT authentication.","operationId":"import_odcl","requestBody":{"description":"ODCS/ODCL YAML file","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Multipart"}}},"required":true},"responses":{"200":{"description":"ODCS/ODCL file imported successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid file or format"},"401":{"description":"Unauthorized - invalid or missing token"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/import/odcl/text":{"post":{"tags":["Import"],"summary":"POST /import/odcl/text - Import tables from ODCS/ODCL text","description":"Supports:\n- ODCS (Open Data Contract Standard) v3.1.0 (primary format)\n- Legacy ODCL formats (deprecated, support ends 31/12/26)\n\nRequires JWT authentication.","operationId":"import_odcl_text","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ODCLTextImportRequest"}}},"required":true},"responses":{"200":{"description":"ODCS/ODCL text imported successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid content or format"},"401":{"description":"Unauthorized - invalid or missing token"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/import/protobuf":{"post":{"tags":["Import"],"summary":"POST /import/protobuf - Import tables from Protobuf .proto file","description":"Requires JWT authentication.","operationId":"import_protobuf","requestBody":{"description":"Protobuf schema file","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Multipart"}}},"required":true},"responses":{"200":{"description":"Protobuf schema imported successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid Protobuf schema"},"401":{"description":"Unauthorized - invalid or missing token"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/import/sql":{"post":{"tags":["Import"],"summary":"POST /import/sql - Import tables from SQL file","description":"Requires JWT authentication.","operationId":"import_sql","requestBody":{"description":"SQL file","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Multipart"}}},"required":true},"responses":{"200":{"description":"SQL file imported successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid file or SQL syntax"},"401":{"description":"Unauthorized - invalid or missing token"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/import/sql/text":{"post":{"tags":["Import"],"summary":"POST /import/sql/text - Import tables from SQL text","description":"Requires JWT authentication.","operationId":"import_sql_text","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SQLTextImportRequest"}}},"required":true},"responses":{"200":{"description":"SQL text imported successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid SQL syntax"},"401":{"description":"Unauthorized - invalid or missing token"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/models/export/all":{"get":{"tags":["Export"],"summary":"GET /export/all - Export model to all formats as ZIP","operationId":"export_all","responses":{"200":{"description":"Model exported to all formats as ZIP"},"404":{"description":"Model not found"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/models/export/{format}":{"get":{"tags":["Export"],"summary":"GET /export/:format - Export model to specified format","operationId":"export_format","parameters":[{"name":"format","in":"path","description":"Export format: json_schema, avro, protobuf, sql, odcl, png","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Model exported successfully"},"400":{"description":"Bad request - invalid format"},"404":{"description":"Model not found"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/openapi.json":{"get":{"tags":["OpenAPI"],"summary":"GET /openapi.json - Serve the OpenAPI specification as JSON","operationId":"serve_openapi_json","responses":{"200":{"description":"OpenAPI specification","content":{"application/json":{"schema":{"type":"object"}}}}}}},"/workspace/create":{"post":{"tags":["Workspace"],"summary":"POST /workspace/create - Create or get workspace for user email and domain","operationId":"create_workspace","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateWorkspaceRequest"}}},"required":true},"responses":{"200":{"description":"Workspace created or retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateWorkspaceResponse"}}}},"400":{"description":"Bad request - invalid email or domain"},"500":{"description":"Internal server error"}}}},"/workspace/domains":{"get":{"tags":["Workspace"],"summary":"GET /workspace/domains - List all domains for the authenticated user","operationId":"list_domains","responses":{"200":{"description":"List of domains retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DomainsListResponse"}}}},"401":{"description":"Unauthorized - invalid or missing token"}},"security":[{"bearer_auth":[]}]},"post":{"tags":["Workspace"],"summary":"POST /workspace/domains - Create a new domain for the authenticated user","operationId":"create_domain","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/DomainRequest"}}},"required":true},"responses":{"200":{"description":"Domain created successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DomainResponse"}}}},"400":{"description":"Bad request - invalid domain name"},"401":{"description":"Unauthorized - invalid or missing token"},"409":{"description":"Conflict - domain already exists"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}":{"get":{"tags":["Workspace"],"summary":"GET /workspace/domains/:domain - Get domain info","operationId":"get_domain","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Domain information retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DomainInfoResponse"}}}},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Domain not found"}},"security":[{"bearer_auth":[]}]},"put":{"tags":["Workspace"],"summary":"PUT /workspace/domains/:domain - Update/rename a domain","operationId":"update_domain","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/UpdateDomainRequest"}}},"required":true},"responses":{"200":{"description":"Domain updated successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DomainResponse"}}}},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Domain not found"},"409":{"description":"Conflict - new domain name already exists"}},"security":[{"bearer_auth":[]}]},"delete":{"tags":["Workspace"],"summary":"DELETE /workspace/domains/:domain - Delete a domain for the authenticated user","operationId":"delete_domain","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Domain deleted successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DomainResponse"}}}},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Domain not found"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/canvas":{"get":{"tags":["Workspace"],"summary":"GET /workspace/domains/{domain}/canvas - Get combined canvas view","description":"Returns all tables and relationships for the domain canvas, including:\n- Owned tables (editable)\n- Imported tables from other domains (read-only)\n- Owned relationships (editable)\n- Imported relationships (read-only, between imported tables from same source domain)","operationId":"get_domain_canvas","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Canvas view retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CanvasResponse"}}}},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain not found"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/cross-domain":{"get":{"tags":["Workspace"],"summary":"GET /workspace/domains/{domain}/cross-domain - Get cross-domain configuration","operationId":"get_cross_domain_config","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Cross-domain configuration retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CrossDomainConfig"}}}},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain not found"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/cross-domain/relationships":{"get":{"tags":["Workspace"],"summary":"GET /workspace/domains/{domain}/cross-domain/relationships - List imported relationships","operationId":"list_cross_domain_relationships","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Imported relationships retrieved successfully","content":{"application/json":{"schema":{"type":"object"}}}},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain not found"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/cross-domain/relationships/{relationship_id}":{"delete":{"tags":["Workspace"],"summary":"DELETE /workspace/domains/{domain}/cross-domain/relationships/{relationship_id} - Remove an imported relationship reference","operationId":"remove_cross_domain_relationship","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"relationship_id","in":"path","description":"Relationship UUID","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Relationship reference removed successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid relationship ID"},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain or relationship reference not found"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/cross-domain/sync":{"post":{"tags":["Workspace"],"summary":"POST /workspace/domains/{domain}/cross-domain/sync - Sync imported relationships","description":"This automatically discovers and imports relationships from source domains\nwhen both ends of the relationship are imported into this domain.","operationId":"sync_cross_domain_relationships","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Relationships synced successfully","content":{"application/json":{"schema":{"type":"object"}}}},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain not found"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/cross-domain/tables":{"get":{"tags":["Workspace"],"summary":"GET /workspace/domains/{domain}/cross-domain/tables - List imported tables","operationId":"list_cross_domain_tables","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Imported tables retrieved successfully","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/CrossDomainTableRef"}}}}},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain not found"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]},"post":{"tags":["Workspace"],"summary":"POST /workspace/domains/{domain}/cross-domain/tables - Add a table from another domain","operationId":"add_cross_domain_table","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AddCrossDomainTableRequest"}}},"required":true},"responses":{"200":{"description":"Table imported successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CrossDomainTableRef"}}}},"400":{"description":"Bad request - invalid table ID"},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain or source table not found"},"409":{"description":"Conflict - table already imported"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/cross-domain/tables/{table_id}":{"put":{"tags":["Workspace"],"summary":"PUT /workspace/domains/{domain}/cross-domain/tables/{table_id} - Update a table reference","operationId":"update_cross_domain_table_ref","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"table_id","in":"path","description":"Table UUID","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/UpdateCrossDomainTableRequest"}}},"required":true},"responses":{"200":{"description":"Table reference updated successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CrossDomainTableRef"}}}},"400":{"description":"Bad request - invalid table ID"},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain or table reference not found"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]},"delete":{"tags":["Workspace"],"summary":"DELETE /workspace/domains/{domain}/cross-domain/tables/{table_id} - Remove a table reference","operationId":"remove_cross_domain_table","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"table_id","in":"path","description":"Table UUID","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Table reference removed successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid table ID"},"403":{"description":"Forbidden - domain access denied"},"404":{"description":"Domain or table reference not found"},"503":{"description":"Service unavailable - database not available"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/relationships":{"get":{"tags":["Relationships"],"summary":"GET /workspace/domains/{domain}/relationships - Get all relationships in a domain","operationId":"get_domain_relationships","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"List of relationships retrieved successfully","content":{"application/json":{"schema":{"type":"object"}}}},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Domain not found"}},"security":[{"bearer_auth":[]}]},"post":{"tags":["Relationships"],"summary":"POST /workspace/domains/{domain}/relationships - Create a new relationship","operationId":"create_domain_relationship","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateRelationshipRequest"}}},"required":true},"responses":{"200":{"description":"Relationship created successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid relationship data"},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Domain or referenced tables not found"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/relationships/{relationship_id}":{"get":{"tags":["Relationships"],"summary":"GET /workspace/domains/{domain}/relationships/{relationship_id} - Get a single relationship","operationId":"get_domain_relationship","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"relationship_id","in":"path","description":"Relationship UUID","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Relationship retrieved successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid relationship ID"},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Relationship not found"}},"security":[{"bearer_auth":[]}]},"put":{"tags":["Relationships"],"summary":"PUT /workspace/domains/{domain}/relationships/{relationship_id} - Update a relationship","operationId":"update_domain_relationship","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"relationship_id","in":"path","description":"Relationship UUID","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/UpdateRelationshipRequest"}}},"required":true},"responses":{"200":{"description":"Relationship updated successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid relationship ID or update data"},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Relationship not found"}},"security":[{"bearer_auth":[]}]},"delete":{"tags":["Relationships"],"summary":"DELETE /workspace/domains/{domain}/relationships/{relationship_id} - Delete a relationship","operationId":"delete_domain_relationship","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"relationship_id","in":"path","description":"Relationship UUID","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Relationship deleted successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid relationship ID"},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Relationship not found"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/tables":{"get":{"tags":["Tables"],"summary":"GET /workspace/domains/{domain}/tables - Get all tables in a domain","operationId":"get_domain_tables","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"List of tables retrieved successfully","content":{"application/json":{"schema":{"type":"object"}}}},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Domain not found"}},"security":[{"bearer_auth":[]}]},"post":{"tags":["Tables"],"summary":"POST /workspace/domains/{domain}/tables - Create a new table in a domain","operationId":"create_domain_table","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateTableRequest"}}},"required":true},"responses":{"200":{"description":"Table created successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid table data"},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Domain not found"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/workspace/domains/{domain}/tables/{table_id}":{"get":{"tags":["Tables"],"summary":"GET /workspace/domains/{domain}/tables/{table_id} - Get a single table","operationId":"get_domain_table","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"table_id","in":"path","description":"Table UUID","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Table retrieved successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid table ID"},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Table not found"}},"security":[{"bearer_auth":[]}]},"put":{"tags":["Tables"],"summary":"PUT /workspace/domains/{domain}/tables/{table_id} - Update a table","operationId":"update_domain_table","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"table_id","in":"path","description":"Table UUID","required":true,"schema":{"type":"string"}}],"requestBody":{"description":"Table update fields","content":{"application/json":{"schema":{"type":"object"}}},"required":true},"responses":{"200":{"description":"Table updated successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid table ID or update data"},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Table not found"}},"security":[{"bearer_auth":[]}]},"delete":{"tags":["Tables"],"summary":"DELETE /workspace/domains/{domain}/tables/{table_id} - Delete a table","operationId":"delete_domain_table","parameters":[{"name":"domain","in":"path","description":"Domain name","required":true,"schema":{"type":"string"}},{"name":"table_id","in":"path","description":"Table UUID","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Table deleted successfully","content":{"application/json":{"schema":{"type":"object"}}}},"400":{"description":"Bad request - invalid table ID"},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Table not found"}},"security":[{"bearer_auth":[]}]}},"/workspace/info":{"get":{"tags":["Workspace"],"summary":"GET /workspace/info - Get current workspace information","operationId":"get_workspace_info","responses":{"200":{"description":"Workspace information retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkspaceInfoResponse"}}}},"404":{"description":"Workspace not found"}},"security":[{"bearer_auth":[]}]}},"/workspace/load-domain":{"post":{"tags":["Workspace"],"summary":"POST /workspace/load-domain - Load a specific domain for the authenticated user","description":"This endpoint forces a reload from disk to ensure latest data is loaded","operationId":"load_domain","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/DomainRequest"}}},"required":true},"responses":{"200":{"description":"Domain loaded successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateWorkspaceResponse"}}}},"401":{"description":"Unauthorized - invalid or missing token"},"404":{"description":"Domain not found"},"500":{"description":"Internal server error"}},"security":[{"bearer_auth":[]}]}},"/workspace/profiles":{"get":{"tags":["Workspace"],"summary":"GET /workspace/profiles - List all profiles (email/domain combinations) for the authenticated user","operationId":"list_profiles","responses":{"200":{"description":"List of profiles retrieved successfully","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ProfilesResponse"}}}},"401":{"description":"Unauthorized - invalid or missing token"}},"security":[{"bearer_auth":[]}]}}},"components":{"schemas":{"Column":{"type":"object","required":["name","data_type"],"properties":{"column_order":{"type":"integer","format":"int32"},"composite_key":{"type":"string","nullable":true},"constraints":{"type":"array","items":{"type":"string"}},"data_type":{"type":"string"},"description":{"type":"string"},"enum_values":{"type":"array","items":{"type":"string"}},"errors":{"type":"array","items":{"type":"object","additionalProperties":{}}},"foreign_key":{"allOf":[{"$ref":"#/components/schemas/ForeignKey"}],"nullable":true},"name":{"type":"string"},"nullable":{"type":"boolean"},"primary_key":{"type":"boolean"},"quality":{"type":"array","items":{"type":"object","additionalProperties":{}}},"secondary_key":{"type":"boolean"}}},"DataModel":{"type":"object","required":["id","name","git_directory_path","control_file_path","created_at","updated_at"],"properties":{"control_file_path":{"type":"string"},"created_at":{"type":"string","format":"date-time"},"description":{"type":"string","nullable":true},"diagram_file_path":{"type":"string","nullable":true},"git_directory_path":{"type":"string"},"id":{"type":"string","format":"uuid"},"is_subfolder":{"type":"boolean"},"name":{"type":"string"},"parent_git_directory":{"type":"string","nullable":true},"relationships":{"type":"array","items":{"$ref":"#/components/schemas/Relationship"}},"tables":{"type":"array","items":{"$ref":"#/components/schemas/Table"}},"updated_at":{"type":"string","format":"date-time"}}},"Relationship":{"type":"object","required":["id","source_table_id","target_table_id","created_at","updated_at"],"properties":{"cardinality":{"allOf":[{"$ref":"#/components/schemas/Cardinality"}],"nullable":true},"created_at":{"type":"string","format":"date-time"},"drawio_edge_id":{"type":"string","nullable":true},"etl_job_metadata":{"allOf":[{"$ref":"#/components/schemas/ETLJobMetadata"}],"nullable":true},"foreign_key_details":{"allOf":[{"$ref":"#/components/schemas/ForeignKeyDetails"}],"nullable":true},"id":{"type":"string","format":"uuid"},"notes":{"type":"string","nullable":true},"relationship_type":{"allOf":[{"$ref":"#/components/schemas/RelationshipType"}],"nullable":true},"source_optional":{"type":"boolean","description":"Optional/Mandatory notation (Crow's Foot)\ntrue = optional (circle), false/None = mandatory (line)","nullable":true},"source_table_id":{"type":"string","format":"uuid"},"target_optional":{"type":"boolean","nullable":true},"target_table_id":{"type":"string","format":"uuid"},"updated_at":{"type":"string","format":"date-time"},"visual_metadata":{"allOf":[{"$ref":"#/components/schemas/VisualMetadata"}],"nullable":true}}},"Table":{"type":"object","required":["id","name","columns","created_at","updated_at"],"properties":{"catalog_name":{"type":"string","nullable":true},"columns":{"type":"array","items":{"$ref":"#/components/schemas/Column"}},"created_at":{"type":"string","format":"date-time"},"data_vault_classification":{"allOf":[{"$ref":"#/components/schemas/DataVaultClassification"}],"nullable":true},"database_type":{"allOf":[{"$ref":"#/components/schemas/DatabaseType"}],"nullable":true},"drawio_cell_id":{"type":"string","nullable":true},"errors":{"type":"array","items":{"type":"object","additionalProperties":{}}},"id":{"type":"string","format":"uuid"},"medallion_layers":{"type":"array","items":{"$ref":"#/components/schemas/MedallionLayer"}},"modeling_level":{"allOf":[{"$ref":"#/components/schemas/ModelingLevel"}],"nullable":true},"name":{"type":"string"},"odcl_metadata":{"type":"object","additionalProperties":{}},"position":{"allOf":[{"$ref":"#/components/schemas/Position"}],"nullable":true},"quality":{"type":"array","items":{"type":"object","additionalProperties":{}}},"scd_pattern":{"allOf":[{"$ref":"#/components/schemas/SCDPattern"}],"nullable":true},"schema_name":{"type":"string","nullable":true},"tags":{"type":"array","items":{"type":"string"}},"updated_at":{"type":"string","format":"date-time"},"yaml_file_path":{"type":"string","nullable":true}}}},"securitySchemes":{"api_key":{"type":"apiKey","in":"header","name":"X-API-Key"},"bearer_auth":{"type":"http","scheme":"bearer"}}},"tags":[{"name":"Authentication","description":"GitHub OAuth authentication endpoints"},{"name":"Workspace","description":"Workspace and domain management"},{"name":"Tables","description":"Table CRUD operations"},{"name":"Relationships","description":"Relationship CRUD operations"},{"name":"Import","description":"Multi-format import endpoints"},{"name":"Export","description":"Multi-format export endpoints"},{"name":"Git Sync","description":"Git synchronization operations"},{"name":"Collaboration","description":"Real-time collaboration sessions"},{"name":"Audit","description":"Audit trail queries"},{"name":"AI","description":"AI-powered error resolution"},{"name":"OpenAPI","description":"OpenAPI specification"}]}
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Data Modelling API",
+    "description": "REST API for data modeling, schema management, and collaboration",
+    "contact": {
+      "name": "API Support",
+      "email": "mark@opendatamodelling.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "1.1.1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8081/api/v1",
+      "description": "Local development server"
+    },
+    {
+      "url": "https://api.opendatamodelling.com/api/v1",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/ai/resolve-errors": {
+      "post": {
+        "tags": [
+          "AI"
+        ],
+        "summary": "POST /ai/resolve-errors - Use AI to resolve import errors",
+        "operationId": "resolve_errors",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveErrorsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "AI resolutions generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveErrorsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/audit/domains/{domain_id}/history": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "GET /audit/domains/{domain_id}/history",
+        "operationId": "get_domain_history",
+        "parameters": [
+          {
+            "name": "domain_id",
+            "in": "path",
+            "description": "Domain UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Limit number of results",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit history retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditHistoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/audit/entries/{entry_id}": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "GET /audit/entries/{entry_id}",
+        "operationId": "get_audit_entry",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Audit entry UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit entry retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEntryDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Audit entry not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/audit/relationships/{relationship_id}/history": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "GET /audit/relationships/{relationship_id}/history",
+        "operationId": "get_relationship_history",
+        "parameters": [
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "description": "Relationship UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Limit number of results",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit history retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditHistoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Relationship not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/audit/tables/{table_id}/history": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "GET /audit/tables/{table_id}/history",
+        "operationId": "get_table_history",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Limit number of results",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit history retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditHistoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Table not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/audit/workspaces/{workspace_id}/history": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "GET /audit/workspaces/{workspace_id}/history",
+        "operationId": "get_workspace_history",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Limit number of results",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit history retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditHistoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/auth/exchange": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "POST /auth/exchange - Exchange a short-lived one-time code for JWT tokens (web flow).",
+        "operationId": "exchange_auth_code",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExchangeAuthCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Auth code exchanged successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeAuthCodeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid or expired code"
+          }
+        }
+      }
+    },
+    "/auth/github/callback": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "GET /auth/github/callback - Handle GitHub OAuth callback",
+        "description": "This handler supports both in-memory (file storage) and database-backed (PostgreSQL) sessions.",
+        "operationId": "handle_github_callback",
+        "responses": {
+          "302": {
+            "description": "Redirect to frontend with auth code or error"
+          },
+          "400": {
+            "description": "Bad request - invalid callback parameters"
+          }
+        }
+      }
+    },
+    "/auth/github/login": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "GET /auth/github/login - Initiate GitHub OAuth flow (web - direct redirect)",
+        "operationId": "initiate_github_login",
+        "parameters": [
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "description": "Optional redirect URI after OAuth completion",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to GitHub OAuth authorization page"
+          },
+          "400": {
+            "description": "Bad request - invalid redirect_uri"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/auth/github/login/desktop": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "GET /auth/github/login/desktop - Initiate GitHub OAuth flow for desktop apps",
+        "operationId": "initiate_desktop_github_login",
+        "responses": {
+          "200": {
+            "description": "Desktop OAuth flow initiated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesktopAuthInitResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "POST /auth/logout - Logout and revoke session",
+        "description": "Supports both in-memory and database-backed session revocation.",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "Logged out successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/auth/poll/{state_id}": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "GET /auth/poll/{state_id} - Poll for desktop auth completion",
+        "operationId": "poll_auth_status",
+        "parameters": [
+          {
+            "name": "state_id",
+            "in": "path",
+            "description": "Desktop auth state ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Auth status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PollAuthResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "State ID not found"
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "POST /auth/refresh - Refresh access token using refresh token",
+        "description": "Supports both in-memory and database-backed session validation.",
+        "operationId": "refresh_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Token refreshed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or expired refresh token"
+          }
+        }
+      }
+    },
+    "/auth/select-email": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "POST /auth/select-email - Select email for workspace creation",
+        "operationId": "select_email",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Email selected successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelectEmailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid email"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/auth/status": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "GET /auth/status - Get current authentication status",
+        "description": "Supports both in-memory and database-backed session queries.",
+        "operationId": "get_auth_status",
+        "responses": {
+          "200": {
+            "description": "Auth status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/collaboration/sessions": {
+      "get": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "GET /collaboration/sessions - List collaboration sessions",
+        "operationId": "list_sessions",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "description": "Filter by workspace ID",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "POST /collaboration/sessions - Create a new collaboration session",
+        "operationId": "create_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/collaboration/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "GET /collaboration/sessions/{session_id} - Get a collaboration session",
+        "operationId": "get_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "DELETE /collaboration/sessions/{session_id} - End a collaboration session",
+        "operationId": "end_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session ended successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/collaboration/sessions/{session_id}/invite": {
+      "post": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "POST /collaboration/sessions/{session_id}/invite - Invite a user to a session",
+        "operationId": "invite_user",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "User invited successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/collaboration/sessions/{session_id}/participants": {
+      "get": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "GET /collaboration/sessions/{session_id}/participants - List participants",
+        "operationId": "list_participants",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Participants retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipantResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/collaboration/sessions/{session_id}/participants/{user_id}": {
+      "delete": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "DELETE /collaboration/sessions/{session_id}/participants/{user_id} - Remove participant",
+        "operationId": "remove_participant",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Participant removed successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/collaboration/sessions/{session_id}/presence": {
+      "get": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "GET /collaboration/sessions/{session_id}/presence - Get presence information",
+        "operationId": "get_presence",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Presence retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PresenceResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/collaboration/sessions/{session_id}/requests": {
+      "get": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "GET /collaboration/sessions/{session_id}/requests - List pending requests",
+        "operationId": "list_pending_requests",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requests retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccessRequestResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "POST /collaboration/sessions/{session_id}/requests - Request access",
+        "operationId": "request_access",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Access requested successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/collaboration/sessions/{session_id}/requests/{request_id}": {
+      "post": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "POST /collaboration/sessions/{session_id}/requests/{request_id} - Respond to request",
+        "operationId": "respond_to_request",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Request UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RespondToRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request responded to successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/export/drawio": {
+      "get": {
+        "tags": [
+          "Export"
+        ],
+        "summary": "GET /export/drawio - Export model to DrawIO XML format",
+        "operationId": "export_drawio",
+        "responses": {
+          "200": {
+            "description": "DrawIO XML exported successfully"
+          },
+          "404": {
+            "description": "Model not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /import/drawio - Import DrawIO XML file to restore layout",
+        "operationId": "import_drawio",
+        "requestBody": {
+          "description": "DrawIO XML file",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Multipart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "DrawIO XML imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid XML or missing file"
+          },
+          "404": {
+            "description": "Model not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/clone": {
+      "post": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "POST /git/clone - Clone a repository for a domain",
+        "operationId": "clone_repository",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloneRepositoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Repository cloned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloneRepositoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/commit": {
+      "post": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "POST /git/commit - Commit changes to Git repository",
+        "operationId": "commit_changes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Changes committed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/config": {
+      "get": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "GET /git/config - Get sync configuration for a domain",
+        "operationId": "get_sync_config",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "description": "Domain name",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sync configuration retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncConfigResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "POST /git/config - Update sync configuration for a domain",
+        "operationId": "update_sync_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSyncConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sync configuration updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncConfigResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/conflicts": {
+      "get": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "GET /git/conflicts - List Git conflicts for a domain",
+        "operationId": "list_conflicts",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "description": "Domain name",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conflicts retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/conflicts/resolve": {
+      "post": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "POST /git/conflicts/resolve - Resolve a Git conflict",
+        "operationId": "resolve_conflict",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveConflictRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conflict resolved successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/export": {
+      "post": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "POST /git/export - Export domain to Git repository",
+        "operationId": "export_domain",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportDomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Domain exported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitExportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/init": {
+      "post": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "POST /git/init - Initialize a Git repository for a domain",
+        "operationId": "init_repository",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitRepositoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Repository initialized successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InitRepositoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/pull": {
+      "post": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "POST /git/pull - Pull changes from remote repository",
+        "operationId": "pull_changes",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes pulled successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/push": {
+      "post": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "POST /git/push - Push changes to remote repository",
+        "operationId": "push_changes",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes pushed successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/git/status": {
+      "get": {
+        "tags": [
+          "Git Sync"
+        ],
+        "summary": "GET /git/status - Get Git status for a domain",
+        "operationId": "get_sync_status",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "description": "Domain name",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Git status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/import/avro": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /import/avro - Import tables from AVRO schema file",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_avro",
+        "requestBody": {
+          "description": "AVRO schema file",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Multipart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "AVRO schema imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid AVRO schema"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/import/json-schema": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /import/json-schema - Import tables from JSON Schema file",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_json_schema",
+        "requestBody": {
+          "description": "JSON Schema file",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Multipart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "JSON Schema imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid JSON Schema"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/import/odcl": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /import/odcl - Import tables from ODCS/ODCL file",
+        "description": "Supports:\n- ODCS (Open Data Contract Standard) v3.1.0 (primary format)\n- Legacy ODCL formats (deprecated, support ends 31/12/26)\n\nRequires JWT authentication.",
+        "operationId": "import_odcl",
+        "requestBody": {
+          "description": "ODCS/ODCL YAML file",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Multipart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "ODCS/ODCL file imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid file or format"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/import/odcl/text": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /import/odcl/text - Import tables from ODCS/ODCL text",
+        "description": "Supports:\n- ODCS (Open Data Contract Standard) v3.1.0 (primary format)\n- Legacy ODCL formats (deprecated, support ends 31/12/26)\n\nRequires JWT authentication.",
+        "operationId": "import_odcl_text",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ODCLTextImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "ODCS/ODCL text imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid content or format"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/import/protobuf": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /import/protobuf - Import tables from Protobuf .proto file",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_protobuf",
+        "requestBody": {
+          "description": "Protobuf schema file",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Multipart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Protobuf schema imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid Protobuf schema"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/import/sql": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /import/sql - Import tables from SQL file",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_sql",
+        "requestBody": {
+          "description": "SQL file",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Multipart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SQL file imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid file or SQL syntax"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/import/sql/text": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /import/sql/text - Import tables from SQL text",
+        "description": "Requires JWT authentication.",
+        "operationId": "import_sql_text",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SQLTextImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SQL text imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid SQL syntax"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/models/export/all": {
+      "get": {
+        "tags": [
+          "Export"
+        ],
+        "summary": "GET /export/all - Export model to all formats as ZIP",
+        "operationId": "export_all",
+        "responses": {
+          "200": {
+            "description": "Model exported to all formats as ZIP"
+          },
+          "404": {
+            "description": "Model not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/models/export/{format}": {
+      "get": {
+        "tags": [
+          "Export"
+        ],
+        "summary": "GET /export/:format - Export model to specified format",
+        "operationId": "export_format",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "path",
+            "description": "Export format: json_schema, avro, protobuf, sql, odcl, png",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model exported successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid format"
+          },
+          "404": {
+            "description": "Model not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "OpenAPI"
+        ],
+        "summary": "GET /openapi.json - Serve the OpenAPI specification as JSON",
+        "operationId": "serve_openapi_json",
+        "responses": {
+          "200": {
+            "description": "OpenAPI specification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/create": {
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "POST /workspace/create - Create or get workspace for user email and domain",
+        "operationId": "create_workspace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace created or retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid email or domain"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/workspace/domains": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "GET /workspace/domains - List all domains for the authenticated user",
+        "operationId": "list_domains",
+        "responses": {
+          "200": {
+            "description": "List of domains retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainsListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "POST /workspace/domains - Create a new domain for the authenticated user",
+        "operationId": "create_domain",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Domain created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid domain name"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "409": {
+            "description": "Conflict - domain already exists"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "GET /workspace/domains/:domain - Get domain info",
+        "operationId": "get_domain",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainInfoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "PUT /workspace/domains/:domain - Update/rename a domain",
+        "operationId": "update_domain",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Domain updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "409": {
+            "description": "Conflict - new domain name already exists"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "DELETE /workspace/domains/:domain - Delete a domain for the authenticated user",
+        "operationId": "delete_domain",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/canvas": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "GET /workspace/domains/{domain}/canvas - Get combined canvas view",
+        "description": "Returns all tables and relationships for the domain canvas, including:\n- Owned tables (editable)\n- Imported tables from other domains (read-only)\n- Owned relationships (editable)\n- Imported relationships (read-only, between imported tables from same source domain)",
+        "operationId": "get_domain_canvas",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Canvas view retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/cross-domain": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "GET /workspace/domains/{domain}/cross-domain - Get cross-domain configuration",
+        "operationId": "get_cross_domain_config",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cross-domain configuration retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrossDomainConfig"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/cross-domain/relationships": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "GET /workspace/domains/{domain}/cross-domain/relationships - List imported relationships",
+        "operationId": "list_cross_domain_relationships",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Imported relationships retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/cross-domain/relationships/{relationship_id}": {
+      "delete": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "DELETE /workspace/domains/{domain}/cross-domain/relationships/{relationship_id} - Remove an imported relationship reference",
+        "operationId": "remove_cross_domain_relationship",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "description": "Relationship UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relationship reference removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid relationship ID"
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain or relationship reference not found"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/cross-domain/sync": {
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "POST /workspace/domains/{domain}/cross-domain/sync - Sync imported relationships",
+        "description": "This automatically discovers and imports relationships from source domains\nwhen both ends of the relationship are imported into this domain.",
+        "operationId": "sync_cross_domain_relationships",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relationships synced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/cross-domain/tables": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "GET /workspace/domains/{domain}/cross-domain/tables - List imported tables",
+        "operationId": "list_cross_domain_tables",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Imported tables retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CrossDomainTableRef"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "POST /workspace/domains/{domain}/cross-domain/tables - Add a table from another domain",
+        "operationId": "add_cross_domain_table",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCrossDomainTableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Table imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrossDomainTableRef"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table ID"
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain or source table not found"
+          },
+          "409": {
+            "description": "Conflict - table already imported"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/cross-domain/tables/{table_id}": {
+      "put": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "PUT /workspace/domains/{domain}/cross-domain/tables/{table_id} - Update a table reference",
+        "operationId": "update_cross_domain_table_ref",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCrossDomainTableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Table reference updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrossDomainTableRef"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table ID"
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain or table reference not found"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "DELETE /workspace/domains/{domain}/cross-domain/tables/{table_id} - Remove a table reference",
+        "operationId": "remove_cross_domain_table",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table reference removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table ID"
+          },
+          "403": {
+            "description": "Forbidden - domain access denied"
+          },
+          "404": {
+            "description": "Domain or table reference not found"
+          },
+          "503": {
+            "description": "Service unavailable - database not available"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/relationships": {
+      "get": {
+        "tags": [
+          "Relationships"
+        ],
+        "summary": "GET /workspace/domains/{domain}/relationships - Get all relationships in a domain",
+        "operationId": "get_domain_relationships",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of relationships retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Relationships"
+        ],
+        "summary": "POST /workspace/domains/{domain}/relationships - Create a new relationship",
+        "operationId": "create_domain_relationship",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRelationshipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Relationship created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid relationship data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain or referenced tables not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/relationships/{relationship_id}": {
+      "get": {
+        "tags": [
+          "Relationships"
+        ],
+        "summary": "GET /workspace/domains/{domain}/relationships/{relationship_id} - Get a single relationship",
+        "operationId": "get_domain_relationship",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "description": "Relationship UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relationship retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid relationship ID"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Relationship not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Relationships"
+        ],
+        "summary": "PUT /workspace/domains/{domain}/relationships/{relationship_id} - Update a relationship",
+        "operationId": "update_domain_relationship",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "description": "Relationship UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRelationshipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Relationship updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid relationship ID or update data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Relationship not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Relationships"
+        ],
+        "summary": "DELETE /workspace/domains/{domain}/relationships/{relationship_id} - Delete a relationship",
+        "operationId": "delete_domain_relationship",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "description": "Relationship UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relationship deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid relationship ID"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Relationship not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/tables": {
+      "get": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "GET /workspace/domains/{domain}/tables - Get all tables in a domain",
+        "operationId": "get_domain_tables",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of tables retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "POST /workspace/domains/{domain}/tables - Create a new table in a domain",
+        "operationId": "create_domain_table",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Table created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/domains/{domain}/tables/{table_id}": {
+      "get": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "GET /workspace/domains/{domain}/tables/{table_id} - Get a single table",
+        "operationId": "get_domain_table",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table ID"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Table not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "PUT /workspace/domains/{domain}/tables/{table_id} - Update a table",
+        "operationId": "update_domain_table",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Table update fields",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Table updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table ID or update data"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Table not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "DELETE /workspace/domains/{domain}/tables/{table_id} - Delete a table",
+        "operationId": "delete_domain_table",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Table UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid table ID"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Table not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/info": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "GET /workspace/info - Get current workspace information",
+        "operationId": "get_workspace_info",
+        "responses": {
+          "200": {
+            "description": "Workspace information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInfoResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/load-domain": {
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "POST /workspace/load-domain - Load a specific domain for the authenticated user",
+        "description": "This endpoint forces a reload from disk to ensure latest data is loaded",
+        "operationId": "load_domain",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Domain loaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          },
+          "404": {
+            "description": "Domain not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/workspace/profiles": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "GET /workspace/profiles - List all profiles (email/domain combinations) for the authenticated user",
+        "operationId": "list_profiles",
+        "responses": {
+          "200": {
+            "description": "List of profiles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Column": {
+        "type": "object",
+        "required": [
+          "name",
+          "data_type"
+        ],
+        "properties": {
+          "column_order": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "composite_key": {
+            "type": "string",
+            "nullable": true
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data_type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enum_values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "foreign_key": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ForeignKey"
+              }
+            ],
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean"
+          },
+          "primary_key": {
+            "type": "boolean"
+          },
+          "quality": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "secondary_key": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DataModel": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "git_directory_path",
+          "control_file_path",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "control_file_path": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "diagram_file_path": {
+            "type": "string",
+            "nullable": true
+          },
+          "git_directory_path": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_subfolder": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parent_git_directory": {
+            "type": "string",
+            "nullable": true
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Relationship"
+            }
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Table"
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Relationship": {
+        "type": "object",
+        "required": [
+          "id",
+          "source_table_id",
+          "target_table_id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "cardinality": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Cardinality"
+              }
+            ],
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "drawio_edge_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "etl_job_metadata": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ETLJobMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "foreign_key_details": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ForeignKeyDetails"
+              }
+            ],
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "relationship_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RelationshipType"
+              }
+            ],
+            "nullable": true
+          },
+          "source_optional": {
+            "type": "boolean",
+            "description": "Optional/Mandatory notation (Crow's Foot)\ntrue = optional (circle), false/None = mandatory (line)",
+            "nullable": true
+          },
+          "source_table_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target_optional": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "target_table_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "visual_metadata": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VisualMetadata"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "Table": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "columns",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "catalog_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Column"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data_vault_classification": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DataVaultClassification"
+              }
+            ],
+            "nullable": true
+          },
+          "database_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DatabaseType"
+              }
+            ],
+            "nullable": true
+          },
+          "drawio_cell_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medallion_layers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedallionLayer"
+            }
+          },
+          "modeling_level": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelingLevel"
+              }
+            ],
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "odcl_metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "position": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Position"
+              }
+            ],
+            "nullable": true
+          },
+          "quality": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "scd_pattern": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SCDPattern"
+              }
+            ],
+            "nullable": true
+          },
+          "schema_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "yaml_file_path": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "api_key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      },
+      "bearer_auth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "GitHub OAuth authentication endpoints"
+    },
+    {
+      "name": "Workspace",
+      "description": "Workspace and domain management"
+    },
+    {
+      "name": "Tables",
+      "description": "Table CRUD operations"
+    },
+    {
+      "name": "Relationships",
+      "description": "Relationship CRUD operations"
+    },
+    {
+      "name": "Import",
+      "description": "Multi-format import endpoints"
+    },
+    {
+      "name": "Export",
+      "description": "Multi-format export endpoints"
+    },
+    {
+      "name": "Git Sync",
+      "description": "Git synchronization operations"
+    },
+    {
+      "name": "Collaboration",
+      "description": "Real-time collaboration sessions"
+    },
+    {
+      "name": "Audit",
+      "description": "Audit trail queries"
+    },
+    {
+      "name": "AI",
+      "description": "AI-powered error resolution"
+    },
+    {
+      "name": "OpenAPI",
+      "description": "OpenAPI specification"
+    }
+  ]
+}

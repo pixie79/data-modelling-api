@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE sessions\n            SET selected_email = $1, last_activity = NOW()\n            WHERE id = $2 AND expires_at > NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e56132837afd969d407a298997da2d54311b2844633cbd38ac31b71f8fc2c278"
+}

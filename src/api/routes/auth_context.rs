@@ -65,7 +65,63 @@ impl FromRequestParts<AppState> for AuthContext {
             return Err(StatusCode::BAD_REQUEST);
         }
 
-        // For file-based mode, verify session exists in memory store
+        // Verify session exists - check database first, then in-memory
+        let session_uuid = match uuid::Uuid::parse_str(&claims.session_id) {
+            Ok(uuid) => uuid,
+            Err(_) => {
+                // Invalid UUID format, try in-memory fallback
+                let sessions = app_state.session_store.lock().await;
+                if !sessions.contains_key(&claims.session_id) {
+                    tracing::warn!("Session {} not found in store", claims.session_id);
+                    return Err(StatusCode::UNAUTHORIZED);
+                }
+                drop(sessions);
+
+                // For file-based mode, we use a deterministic UUID based on email
+                let user_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_DNS, claims.sub.as_bytes());
+                let user_context = UserContext {
+                    user_id,
+                    email: claims.sub.clone(),
+                };
+                return Ok(AuthContext {
+                    user_context,
+                    session_id: Some(claims.session_id),
+                    email: claims.sub,
+                });
+            }
+        };
+
+        // Try database session first
+        if let Some(db_session_store) = app_state.db_session_store.as_ref() {
+            match db_session_store.get_session(session_uuid).await {
+                Ok(Some(session)) => {
+                    // Check if session is valid
+                    if session.revoked_at.is_some() || session.expires_at < chrono::Utc::now() {
+                        tracing::warn!("Session {} is expired or revoked", claims.session_id);
+                        return Err(StatusCode::UNAUTHORIZED);
+                    }
+                    // Use user_id from database session
+                    let user_context = UserContext {
+                        user_id: session.user_id,
+                        email: claims.sub.clone(),
+                    };
+                    return Ok(AuthContext {
+                        user_context,
+                        session_id: Some(claims.session_id),
+                        email: claims.sub,
+                    });
+                }
+                Ok(None) => {
+                    // Session not found in database, try in-memory
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to get session from database: {}", e);
+                    // Fall through to in-memory check
+                }
+            }
+        }
+
+        // Fall back to in-memory session store
         let sessions = app_state.session_store.lock().await;
         if !sessions.contains_key(&claims.session_id) {
             tracing::warn!("Session {} not found in store", claims.session_id);
